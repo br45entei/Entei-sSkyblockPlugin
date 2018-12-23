@@ -2076,7 +2076,7 @@ public final class Island {
 	/** Calculates this Island's level
 	 * 
 	 * @return This island's current level */
-	public final double calculateLevel() {
+	public final double calculateLevel() { //XXX calculateLevel
 		double level = 0x0.0p0;
 		int[] bounds = this.getBounds();
 		for(int x = bounds[0]; x <= bounds[2]; x++) {
@@ -2096,6 +2096,12 @@ public final class Island {
 			}
 		}
 		for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(this.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
+			if(entity instanceof Player) {
+				Player player = (Player) entity;
+				if(!this.isMember(player) || (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode()!= GameMode.ADVENTURE)) {
+					continue;
+				}
+			}
 			if(entity instanceof InventoryHolder && !(entity instanceof Monster)) {
 				InventoryHolder invHolder = (InventoryHolder) entity;
 				Inventory inv = invHolder.getInventory();
@@ -2107,7 +2113,7 @@ public final class Island {
 						double l = getLevelFor(item);
 						level += l;
 						if(l < 0x0.0p0) {
-							Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item));
+							Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item) + " inside entity \"" + entity.getName() + "\"(" + entity.getClass().getSimpleName() + ")'s inventory at: " + entity.getLocation().toVector());
 						}
 					}
 				}

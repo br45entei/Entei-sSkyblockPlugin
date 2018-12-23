@@ -15,6 +15,7 @@ import java.io.File;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -242,6 +243,9 @@ public class Main extends JavaPlugin implements Listener {
 	
 	public static final String limitDecimalToNumberOfPlaces(double d, int places) {
 		String s = Double.toString(d);
+		if(s.contains("E")){
+			s = new BigDecimal(d).toPlainString();
+		}
 		if(!s.contains(".")) {
 			return s;
 		}
