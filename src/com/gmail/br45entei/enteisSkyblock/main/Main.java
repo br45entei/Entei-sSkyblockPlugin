@@ -1209,7 +1209,7 @@ public class Main extends JavaPlugin implements Listener {
 				//sender.sendMessage(ChatColor.YELLOW + "The Skyblock GUI system has not been implemented yet. Sorry!");
 				if(island == null) {
 					//TODO finish changing these to load from config!
-					gui.setSlot(0, Material.GRASS, this.getConfig().getString("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Far Away"), ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area.");
+					gui.setSlot(0, Material.GRASS, this.getConfig().getString("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area.");
 					gui.setSlot(1, Material.GRASS, ChatColor.GREEN + "Create Normal Far Away", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands.");
 					gui.setSlot(2, Material.GRASS, ChatColor.GREEN + "Create Normal Random", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location.");
 					gui.setSlot(3, Material.GRASS, ChatColor.GREEN + "Create Square Near Spawn", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area.");

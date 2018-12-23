@@ -4114,7 +4114,7 @@ public final class Island {
 			level += 0.001;
 			break;
 		case DIAMOND_BLOCK:
-			level += 0.001;
+			level += 1.337;
 			break;
 		case DIAMOND_BOOTS:
 			level += 0.001;

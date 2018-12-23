@@ -2,8 +2,11 @@
 <classpath>
 	<classpathentry excluding=".gitattributes|.gitignore" kind="src" path="src"/>
 	<classpathentry kind="src" path="resources"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/Entei&apos;sSkyblockGenerator"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="lib" path="wrkDir/spigot-1.12.2.jar">
 		<attributes>
 			<attribute name="javadoc_location" value="jar:platform:/resource/Entei&apos;sSkyblockPlugin/wrkDir/spigot-1.12.2-javadoc.jar!/"/>
@@ -13,5 +16,6 @@
 	<classpathentry kind="lib" path="wrkDir/plugins/worldguard-6.2.1.jar"/>
 	<classpathentry kind="lib" path="wrkDir/plugins/perworldinventory-1.11.5.jar" sourcepath="/PerWorldInventory"/>
 	<classpathentry kind="lib" path="wrkDir/plugins/Vault.jar"/>
+	<classpathentry kind="lib" path="wrkDir/plugins/Entei&apos;s Skyblock Generator.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
