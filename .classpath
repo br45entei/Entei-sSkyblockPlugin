@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="resources"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="E:/Java/Minecraft/Plugins/Bukkit/1.12.2/Vault.jar" sourcepath="E:/Java/Minecraft/Plugins/Bukkit/1.12.2/vault-master-src">
+		<attributes>
+			<attribute name="javadoc_location" value="http://milkbowl.github.io/VaultAPI/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="E:/Java/Minecraft/Plugins/Bukkit/1.12.2/worldedit-bukkit-6.1.9-SNAPSHOT-dist.jar"/>
+	<classpathentry kind="lib" path="E:/Java/Minecraft/Plugins/Bukkit/1.12.2/worldguard-bukkit-6.2.2.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Entei&apos;sSkyblockGenerator"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/PerWorldInventory"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Spigot_1.12.2_PluginLoader"/>
+	<classpathentry kind="lib" path="/Spigot_1.12.2_PluginLoader/lib/spigot-1.12.2.jar" sourcepath="/Spigot_1.12.2_PluginLoader"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

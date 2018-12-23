@@ -1,0 +1,46 @@
+name: "EnteisSkyblock"
+prefix: "Entei's Skyblock"
+version: 1.0.0
+authors: [Brian_Entei]
+description: Basic skyblock support
+load: POSTWORLD
+loadBefore: [Multiverse-Core, MultiWorld, WorldLoad]
+depend: [EnteisSkyblockGenerator]
+softdepend: [WorldGuard]
+
+main: com.gmail.br45entei.enteisSkyblock.main.Main
+
+commands:
+  island:
+    description: "The main island command"
+    usage: "Type /is help to view usages."
+    aliases: [is, iw, ih, hi, ig]
+  spawn:
+    description: "Teleport yourself to the server spawn"
+    usage: "/spawn"
+    aliases: []
+  skyworld:
+    description: "Teleport yourself to the skyworld"
+    usage: "/skyworld"
+    aliases: []
+  challenge:
+    description: "View or complete Island challenges"
+    usage: "/challenge complete {challengeName}"
+    aliases: [c, cc]
+  test:
+    description: "Generate a test island nearest your location"
+    usage: "/test"
+    aliases: []
+  delete:
+    description: "Delete the island nearest your location, if it exists"
+    usage: "/delete"
+    aliases: []
+  chest:
+    description: "Access an extra storage chest anywhere in the skyworld"
+    usage: "/chest"
+    aliases: []
+  unsafeEnchant:
+    description: "Add unsafe enchantments onto any item"
+    usage: "/enchant <player> <enchantment ID> [level] [force]"
+    aliases: [ue]
+  
