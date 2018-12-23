@@ -11,6 +11,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -71,6 +73,7 @@ public abstract class InventoryGUI implements Listener {
 	protected volatile boolean allowEditing;
 	protected volatile boolean removeOnClose;
 	
+	protected transient volatile int currentPage = 1;
 	protected volatile Sound openSound = null, closeSound = null,
 			clickSound = null;
 	
@@ -434,6 +437,15 @@ public abstract class InventoryGUI implements Listener {
 			icon.setItemMeta(meta);
 		}
 		return this;
+	}
+	
+	/** @param slot The slot to modify
+	 * @param icon The Material to use as an icon
+	 * @param title The title to set for the ItemStack in the given slot
+	 * @param lores The lore to append onto the ItemStack's existing lore
+	 * @return This InventoryGUI */
+	public InventoryGUI setSlot(int slot, Material icon, String title, Collection<String> lores) {
+		return this.setSlot(slot, icon, title, lores.toArray(new String[lores.size()]));
 	}
 	
 	/** @param slot The slot to modify
@@ -847,6 +859,90 @@ public abstract class InventoryGUI implements Listener {
 		if(gui.removeOnClose) {
 			instances.remove(gui);
 		}
+	}
+	
+	/** @param gui The gui to use
+	 * @param inventory The open inventory to update */
+	public static final void setInventoryWithIslandJoinPage(InventoryGUI gui, Inventory inventory) {
+		final List<Island> joinable = Island.getJoinableIslands();
+		int guiSize = InventoryGUI.nextMultipleOf9(joinable.size());
+		int bukkitSize = Math.max(9, Math.min(54, guiSize));
+		final int pages;
+		if(guiSize > bukkitSize) {
+			int increments = 1;
+			int total = guiSize;
+			int current = bukkitSize;
+			while(total > current) {
+				bukkitSize += 52;//54, but minus two for the two next/prev-page papers
+				increments++;
+			}
+			pages = increments;
+		} else {
+			pages = 1;
+		}
+		int i = 0;
+		int j = 0;
+		int targetI = (gui.currentPage - 1) * 54;
+		if(gui.currentPage == 1) {
+			setMainMenuSign(inventory, 8);
+		}
+		for(Island is : joinable) {
+			if(j < targetI) {
+				j++;
+				continue;
+			}
+			if(gui.currentPage == 1 && i == 8) {
+				//Do nothing. reserved for main menu sign.
+			} else if(i % 53 == 0 && gui.currentPage < pages) {
+				ItemStack paper = new ItemStack(Material.PAPER);
+				ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.PAPER);
+				String title = ChatColor.DARK_GRAY + "Next page";
+				List<String> lore = new ArrayList<>();
+				lore.add(ChatColor.GRAY + "Click to view the next");
+				lore.add(ChatColor.GRAY + "page.");
+				meta.setDisplayName(title);
+				meta.setLore(lore);
+				paper.setItemMeta(meta);
+				inventory.setItem(i, paper);
+			} else if(i % 45 == 0 && gui.currentPage > 1) {
+				ItemStack paper = new ItemStack(Material.PAPER);
+				ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.PAPER);
+				String title = ChatColor.DARK_GRAY + "Previous page";
+				List<String> lore = new ArrayList<>();
+				lore.add(ChatColor.GRAY + "Click to view the previous");
+				lore.add(ChatColor.GRAY + "page.");
+				meta.setDisplayName(title);
+				meta.setLore(lore);
+				paper.setItemMeta(meta);
+				inventory.setItem(i, paper);
+			} else {
+				inventory.setItem(i, is.getOwnerSkull(is.getOwnerName() + ChatColor.RESET + ChatColor.DARK_GREEN + "'s Island"));
+			}
+			i++;
+			j++;
+		}
+	}
+	
+	/** @param gui The gui that will be updated
+	 * @param slot The slot to set the main menu sign in */
+	public static final void setMainMenuSign(InventoryGUI gui, int slot) {
+		ItemStack mainMenu = new ItemStack(Material.SIGN);
+		ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.SIGN);
+		meta.setDisplayName(ChatColor.DARK_GREEN + "Main menu");
+		meta.setLore(Arrays.asList(ChatColor.GRAY + "Click to go back to the", ChatColor.GRAY + "main island menu."));
+		mainMenu.setItemMeta(meta);
+		gui.setSlotIcon(slot, mainMenu);
+	}
+	
+	/** @param inv The inventory that will be updated
+	 * @param slot The slot to set the main menu sign in */
+	public static final void setMainMenuSign(Inventory inv, int slot) {
+		ItemStack mainMenu = new ItemStack(Material.SIGN);
+		ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.SIGN);
+		meta.setDisplayName(ChatColor.DARK_GREEN + "Main menu");
+		meta.setLore(Arrays.asList(ChatColor.GRAY + "Click to go back to the", ChatColor.GRAY + "main island menu."));
+		mainMenu.setItemMeta(meta);
+		inv.setItem(slot, mainMenu);
 	}
 	
 	private static final class InventoryOwner implements InventoryHolder {

@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.regex.Pattern;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.GameMode;
@@ -2098,7 +2099,7 @@ public final class Island {
 		for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(this.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
 			if(entity instanceof Player) {
 				Player player = (Player) entity;
-				if(!this.isMember(player) || (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode()!= GameMode.ADVENTURE)) {
+				if(!this.isMember(player) || (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE)) {
 					continue;
 				}
 			}
@@ -2235,6 +2236,12 @@ public final class Island {
 		return false;
 	}
 	
+	/** @return Whether or not any island members have invited other players to
+	 *         join the island */
+	public final boolean hasAnyInvitations() {
+		return !this.memberInvitations.isEmpty();
+	}
+	
 	/** @param player The player to check for
 	 * @return Whether or not the given player requested to join this
 	 *         Island */
@@ -2257,6 +2264,28 @@ public final class Island {
 			}
 		}
 		return false;
+	}
+	
+	/** @return A list of player UUIDs who have requested to join this island */
+	public final List<OfflinePlayer> getOnlineJoinRequests() {
+		List<OfflinePlayer> joinRequestingPlayers = new ArrayList<>();
+		for(Entry<UUID, Long> entry : this.memberJoinRequests.entrySet()) {
+			Long value = entry.getValue();
+			if(value == null || System.currentTimeMillis() >= value.longValue()) {
+				this.memberJoinRequests.remove(entry.getKey());
+				continue;
+			}
+			OfflinePlayer requester = Main.server.getOfflinePlayer(entry.getKey());
+			if(requester != null && requester.isOnline()) {
+				joinRequestingPlayers.add(requester);
+			}
+		}
+		return joinRequestingPlayers;
+	}
+	
+	/** @return Whether or not any players are requesting to join this island */
+	public final boolean hasAnyJoinRequests() {
+		return !this.memberJoinRequests.isEmpty();
 	}
 	
 	/** Join request result types.
@@ -3033,12 +3062,14 @@ public final class Island {
 						chunks.add(chunk);
 					}
 				} catch(Throwable ex) {
-					int[] xz = Main.getWorldToChunkCoords(x, z);
-					Main.getPlugin().getLogger().warning("Unable to get chunk at " + xz[0] + " " + xz[1] + ": " + ex.getClass().getName() + ": " + ex.getMessage());
-					Throwable e = ex;
-					while(e.getCause() != null) {
-						e = e.getCause();
-						Main.getPlugin().getLogger().warning("Caused by: " + e.getClass().getName() + ": " + e.getMessage());
+					if(Bukkit.isPrimaryThread()) {
+						int[] xz = Main.getWorldToChunkCoords(x, z);
+						Main.getPlugin().getLogger().warning("Unable to get chunk at " + xz[0] + " " + xz[1] + ": " + ex.getClass().getName() + ": " + ex.getMessage());
+						Throwable e = ex;
+						while(e.getCause() != null) {
+							e = e.getCause();
+							Main.getPlugin().getLogger().warning("Caused by: " + e.getClass().getName() + ": " + e.getMessage());
+						}
 					}
 					continue;
 				}
@@ -3832,7 +3863,7 @@ public final class Island {
 			level += 0.001;
 			break;
 		case BEDROCK:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case BED_BLOCK:
 			level += 0.001;
@@ -4036,16 +4067,16 @@ public final class Island {
 			level += 0.001;
 			break;
 		case COMMAND:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case COMMAND_CHAIN:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case COMMAND_MINECART:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case COMMAND_REPEATING:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case COMPASS:
 			level += 0.001;
@@ -4237,7 +4268,7 @@ public final class Island {
 			level += 0.001;
 			break;
 		case EXP_BOTTLE:
-			level += -99999999.9999999999999999;
+			level += -9999999999999999.9999999999999999;
 			break;
 		case EYE_OF_ENDER:
 			level += 0.001;

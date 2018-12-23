@@ -2,25 +2,40 @@ island:
   gui-lore:
     uncreated:
       normal-nearspawn:
-        title: §2Create Normal Near Spawn
+        title: '&2Create Normal Near Spawn'
         lore: |
-          Test line 1
-          Test line 2
+          &7Click to create a normal island
+          &7near the spawn area.
       normal-faraway:
-        title: §2Create Normal Far Away
-        lore: ''
+        title: '&2Create Normal Far Away'
+        lore: |
+          &7Click to create a normal island
+          &7far away from other islands.
       normal-random:
-        title: §2Create Normal Random
-        lore: ''
+        title: '&2Create Normal Random'
+        lore: |
+          &7Click to create a normal island
+          &7in a random location.
       square-nearspawn:
-        title: §2Create Square Near Spawn
-        lore: ''
+        title: '&2Create Square Near Spawn'
+        lore: |
+          &7Click to create a square island
+          &7near the spawn area.
       square-faraway:
-        title: §2Create Square Far Away
-        lore: ''
+        title: '&2Create Square Far Away'
+        lore: |
+          &7Click to create a square island
+          &7far away from other islands.
       square-random:
-        title: §2Create Square Random
-        lore: ''
+        title: '&2Create Square Random'
+        lore: |
+          &7Click to create a square island
+          &7in a random location.
+      join-island:
+        title: '&2Join an Island'
+        lore: |
+          &7Click to view a list of islands
+          &7that you can request to join.
     created:
       information:
         title: ''

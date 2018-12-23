@@ -10,24 +10,36 @@ import com.gmail.br45entei.enteisSkyblock.vault.VaultHandler;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator.SkyworldBlockPopulator;
+import com.gmail.br45entei.util.ResourceUtil;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -54,6 +66,9 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Animals;
@@ -139,6 +154,24 @@ public class Main extends JavaPlugin implements Listener {
 	public static volatile PluginManager pluginMgr;
 	
 	private static volatile boolean vaultEnabled = false;
+	
+	private static volatile double defaultLevel = 0.01;
+	protected static final ConcurrentHashMap<Material, Double> materialLevels = new ConcurrentHashMap<>();
+	
+	/** @param material The material whose level will be returned
+	 * @return The level for the given material, or <code>0.01</code> if the
+	 *         material was not found/configured. */
+	public static final double getLevelFor(Material material) {
+		if(material == null) {
+			throw new NullPointerException("Material cannot be null!");
+		}
+		Double level = materialLevels.get(material);
+		if(level == null) {
+			Main.getPlugin().getLogger().warning("A material was not set in the configuration file materialLevels.yml: " + material.name());
+			level = Double.valueOf(defaultLevel);
+		}
+		return level.doubleValue();
+	}
 	
 	public static final String getPrefix() {
 		return plugin == null ? "" : "[" + plugin.getDescription().getPrefix() + "] ";
@@ -243,7 +276,7 @@ public class Main extends JavaPlugin implements Listener {
 	
 	public static final String limitDecimalToNumberOfPlaces(double d, int places) {
 		String s = Double.toString(d);
-		if(s.contains("E")){
+		if(s.contains("E")) {
 			s = new BigDecimal(d).toPlainString();
 		}
 		if(!s.contains(".")) {
@@ -264,6 +297,98 @@ public class Main extends JavaPlugin implements Listener {
 	
 	public Main() {
 		plugin = this;
+	}
+	
+	private static final double getDoubleSafe(Double d) {
+		double value = d.doubleValue();
+		if(value != value) {
+			value = 0.0;
+		}
+		if(Double.isInfinite(value)) {
+			value = 0.0;
+		}
+		return value;
+	}
+	
+	public final File getMaterialConfigFile() {
+		return new File(this.getDataFolder(), "materialLevels.yml");
+	}
+	
+	public final boolean loadMaterialConfig() {
+		materialLevels.clear();
+		File file = this.getMaterialConfigFile();
+		ConfigurationSection config = this.getMaterialLevelConfig();
+		if(config == null) {
+			file.delete();
+			config = this.saveDefaultMaterialConfig();
+		}
+		if(config == null) {
+			this.getLogger().warning("Unable to load or save configuration file materialLevels.yml!");
+			this.getLogger().warning("Setting all materials to the default value of '" + new BigDecimal(defaultLevel).toPlainString() + "'.");
+			for(Material material : Material.values()) {
+				materialLevels.put(material, Double.valueOf(defaultLevel));
+			}
+			return false;
+		}
+		for(String materialName : config.getKeys(false)) {
+			Material material = Material.getMaterial(materialName);
+			if(material == null) {
+				this.getLogger().warning("Material \"" + materialName + "\" specified in file materialLevels.yml does not exist! Ignoring...");
+				continue;
+			}
+			double value = config.getDouble(materialName, defaultLevel);
+			materialLevels.put(material, Double.valueOf(value));
+		}
+		return true;
+	}
+	
+	public final boolean saveMaterialConfig() {
+		File file = this.getMaterialConfigFile();
+		YamlConfiguration config = new YamlConfiguration();
+		for(Entry<Material, Double> entry : materialLevels.entrySet()) {
+			config.set(entry.getKey().name(), Double.toString(getDoubleSafe(entry.getValue())));
+		}
+		try {
+			config.save(file);
+			return true;
+		} catch(IOException ex) {
+			this.getLogger().log(Level.SEVERE, "Failed to save to configuration file " + file.getName(), ex);
+			return false;
+		}
+	}
+	
+	public final ConfigurationSection saveDefaultMaterialConfig() {
+		File file = this.getMaterialConfigFile();
+		if(file.isFile() && ResourceUtil.size(file) > 0) {
+			return null;//Fail silently if file already exists
+		}
+		YamlConfiguration config = new YamlConfiguration();
+		for(Material material : Material.values()) {
+			config.set(material.name(), Double.valueOf(0.01));
+		}
+		try {
+			config.save(file);
+		} catch(IOException e) {
+			System.err.print("main() threw an error: ");
+			e.printStackTrace(System.err);
+			System.err.flush();
+		}
+		return config;
+	}
+	
+	private final ConfigurationSection getMaterialLevelConfig() {
+		File file = ResourceUtil.loadResourceAsFile(this.getResource("materialLevels.yml"), this.getMaterialConfigFile());
+		if(file == null) {
+			this.getLogger().warning("Failed to create configuration file materialLevels.yml!");
+			return null;
+		}
+		YamlConfiguration config = new YamlConfiguration();
+		try {
+			config.load(file);
+		} catch(IOException | InvalidConfigurationException ex) {
+			this.getLogger().log(Level.SEVERE, "Failed to load from configuration file materialLevels.yml", ex);
+		}
+		return config;
 	}
 	
 	/** Teleports the player to the given location. If the player is riding a
@@ -1036,6 +1161,7 @@ public class Main extends JavaPlugin implements Listener {
 				}
 				//XXX /island gui
 				InventoryGUI gui = new InventoryGUI(ChatColor.DARK_GREEN + "Skyblock Menu", 18) {
+					
 					@Override
 					public void onClick(int slot, Player player, Inventory inventory) {
 						//ItemStack clicked = this.getSlotIcon(slot, false);
@@ -1080,51 +1206,16 @@ public class Main extends JavaPlugin implements Listener {
 									pages = 1;
 								}
 								InventoryGUI join = new InventoryGUI(ChatColor.GOLD + "Island Join Menu", bukkitSize) {
-									public volatile int currentPage = 1;
-									
-									public void setInventoryWithPage(Inventory inventory) {
-										int i = 0;
-										int j = 0;
-										int targetI = (this.currentPage - 1) * 54;
-										for(Island is : joinable) {
-											if(j < targetI) {
-												j++;
-												continue;
-											}
-											if(i % 53 == 0 && this.currentPage < pages) {
-												ItemStack paper = new ItemStack(Material.PAPER);
-												ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.PAPER);
-												String title = ChatColor.DARK_GRAY + "Next page";
-												List<String> lore = new ArrayList<>();
-												lore.add(ChatColor.GRAY + "Click to view the next");
-												lore.add(ChatColor.GRAY + "page.");
-												meta.setDisplayName(title);
-												meta.setLore(lore);
-												paper.setItemMeta(meta);
-												inventory.setItem(i, paper);
-											} else if(i % 45 == 0 && this.currentPage > 1) {
-												ItemStack paper = new ItemStack(Material.PAPER);
-												ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.PAPER);
-												String title = ChatColor.DARK_GRAY + "Previous page";
-												List<String> lore = new ArrayList<>();
-												lore.add(ChatColor.GRAY + "Click to view the previous");
-												lore.add(ChatColor.GRAY + "page.");
-												meta.setDisplayName(title);
-												meta.setLore(lore);
-												paper.setItemMeta(meta);
-												inventory.setItem(i, paper);
-											} else {
-												inventory.setItem(i, is.getOwnerSkull(is.getOwnerName() + ChatColor.RESET + ChatColor.DARK_GREEN + "'s Island"));
-											}
-											i++;
-											j++;
-										}
-									}
 									
 									@Override
 									public void onClick(int slot, Player player, Inventory inventory) {
 										ItemStack clicked = inventory.getItem(slot);
 										int page = this.currentPage;
+										if(slot == 8 && page == 1) {
+											//player.closeInventory();
+											Main.server.dispatchCommand(player, "island");
+											return;
+										}
 										if(slot == 45) {//Previous page
 											if(clicked != null && clicked.getType() == Material.PAPER) {
 												this.currentPage--;
@@ -1136,7 +1227,7 @@ public class Main extends JavaPlugin implements Listener {
 											}
 										}
 										if(page != this.currentPage) {
-											this.setInventoryWithPage(inventory);
+											setInventoryWithIslandJoinPage(this, inventory);
 											return;
 										}
 										if(clicked != null && clicked.getType() == Material.SKULL_ITEM && clicked.hasItemMeta()) {
@@ -1151,10 +1242,14 @@ public class Main extends JavaPlugin implements Listener {
 										}
 									}
 								}.setDefaultClickSound();
+								//setInventoryWithIslandJoinPage(join, inventory);
+								setMainMenuSign(join, 8);
 								int i = 0;
 								for(Island is : joinable) {
 									int currentPage = (i / 54) + 1;
-									if(i + 1 % 53 == 0 || i + 1 % 45 == 0) {
+									if(i == 8 && currentPage == 1) {
+										//Do nothing. Reserved for main menu sign.
+									} else if(i + 1 % 53 == 0 || i + 1 % 45 == 0) {
 										if(i + 1 != 45) {//There is no previous page past the first one!
 											if(currentPage < pages || (currentPage == pages && i + 1 % 45 == 0)) {//There is no next page past the last one!
 												i++;
@@ -1189,7 +1284,7 @@ public class Main extends JavaPlugin implements Listener {
 								Main.server.dispatchCommand(sender, "island setwarp");
 								break;
 							case 9:
-								player.closeInventory();
+								//player.closeInventory();
 								player.openInventory(Challenge.getChallengeScreen(player));
 								break;
 							case 16:
@@ -1213,13 +1308,13 @@ public class Main extends JavaPlugin implements Listener {
 				//sender.sendMessage(ChatColor.YELLOW + "The Skyblock GUI system has not been implemented yet. Sorry!");
 				if(island == null) {
 					//TODO finish changing these to load from config!
-					gui.setSlot(0, Material.GRASS, this.getConfig().getString("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area.");
-					gui.setSlot(1, Material.GRASS, ChatColor.GREEN + "Create Normal Far Away", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands.");
-					gui.setSlot(2, Material.GRASS, ChatColor.GREEN + "Create Normal Random", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location.");
-					gui.setSlot(3, Material.GRASS, ChatColor.GREEN + "Create Square Near Spawn", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area.");
-					gui.setSlot(4, Material.GRASS, ChatColor.GREEN + "Create Square Far Away", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands.");
-					gui.setSlot(5, Material.GRASS, ChatColor.GREEN + "Create Square Random", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location.");
-					gui.setSlot(8, Material.SIGN, ChatColor.GREEN + "Join an Island", ChatColor.GRAY + "Click to view a list of islands", ChatColor.GRAY + "that you can request to join.");
+					gui.setSlot(0, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area."));
+					gui.setSlot(1, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-faraway.title", ChatColor.GREEN + "Create Normal Far Away"), this.getStringList("island.gui-lore.uncreated.normal-faraway.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands."));
+					gui.setSlot(2, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-random.title", ChatColor.GREEN + "Create Normal Random"), this.getStringList("island.gui-lore.uncreated.normal-random.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location."));
+					gui.setSlot(3, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-nearspawn.title", ChatColor.GREEN + "Create Square Near Spawn"), this.getStringList("island.gui-lore.uncreated.square-nearspawn.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area."));
+					gui.setSlot(4, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-faraway.title", ChatColor.GREEN + "Create Square Far Away"), this.getStringList("island.gui-lore.uncreated.square-faraway.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands."));
+					gui.setSlot(5, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-random.title", ChatColor.GREEN + "Create Square Random"), this.getStringList("island.gui-lore.uncreated.square-random.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location."));
+					gui.setSlot(8, Material.SIGN, this.getStringColor("island.gui-lore.uncreated.join-island.title", ChatColor.GREEN + "Join an Island"), this.getStringList("island.gui-lore.uncreated.join-island.lore", ChatColor.GRAY + "Click to view a list of islands", ChatColor.GRAY + "that you can request to join."));
 				} else {
 					gui.setSlot(0, Material.SIGN, ChatColor.GREEN + "Island information", ChatColor.GRAY + "Click to view information about", ChatColor.GRAY + "your island.");
 					gui.setSlotIcon(1, new ItemStack(Material.BED, 1, (short) 14)).setSlotTitle(1, ChatColor.GREEN + "Island home").setSlotLore(1, ChatColor.GRAY + "Click to teleport to your island's ", ChatColor.GRAY + "home.");
@@ -1425,6 +1520,46 @@ public class Main extends JavaPlugin implements Listener {
 			saveAll();
 		}
 		return false;
+	}
+	
+	private final String getStringColor(String path, String def) {
+		return ChatColor.translateAlternateColorCodes('&', this.getConfig().getString(path, def));
+	}
+	
+	private static final List<String> colorize(String... list) {
+		for(int i = 0; i < list.length; i++) {
+			list[i] = ChatColor.translateAlternateColorCodes('&', list[i]);
+		}
+		return Arrays.asList(list);
+	}
+	
+	private static final List<String> colorize(List<String> list) {
+		List<String> old = new ArrayList<>(list);
+		list.clear();
+		for(String line : old) {
+			list.add(ChatColor.translateAlternateColorCodes('&', line));
+		}
+		return list;
+	}
+	
+	private final List<String> getStringList(String path, String... def) {
+		List<String> list = this.getConfig().getStringList(path);
+		if(list == null || list.isEmpty()) {
+			String test = this.getConfig().getString(path);
+			//System.out.println("Couldn't load \"" + path + "\" as a string list, but it loaded as string like this: \"" + test + "\"");
+			String[] split = test.split(Pattern.quote("\n"));
+			if(split.length > 1) {
+				list = new ArrayList<>();
+				for(String line : split) {
+					list.add(line.trim());
+				}
+				return colorize(list);
+			}
+		}
+		if(list == null || list.isEmpty()) {
+			return colorize(def);
+		}
+		return colorize(list);
 	}
 	
 	@SuppressWarnings("deprecation")
@@ -1960,12 +2095,14 @@ public class Main extends JavaPlugin implements Listener {
 		InventoryGUI.savePerPlayerInventories();
 		Island.saveAllIslands();
 		GeneratorMain.saveAll();
+		getPlugin().saveMaterialConfig();
 		getPlugin().saveConfig();
 	}
 	
 	public static final void loadAll() {
 		getPlugin().saveDefaultConfig();
 		getPlugin().reloadConfig();
+		getPlugin().loadMaterialConfig();
 		GeneratorMain.loadAll();
 		Island.loadAllIslands();
 		InventoryGUI.loadPerPlayerInventories();
@@ -3235,8 +3372,19 @@ public class Main extends JavaPlugin implements Listener {
 	public static final void onPlayerJoinEvent(PlayerJoinEvent event) {
 		Island.updateAllRegions();
 		Player player = event.getPlayer();
-		Island island = Island.getIslandFor(player);
+		final Island island = Island.getIslandFor(player);
 		if(island != null) {
+			Main.scheduler.runTaskLater(getPlugin(), () -> {
+				if(island.hasAnyJoinRequests()) {
+					List<OfflinePlayer> requesters = island.getOnlineJoinRequests();
+					if(!requesters.isEmpty()) {
+						player.sendMessage(ChatColor.BLUE + "[Island]: " + ChatColor.GREEN + "The following player(s) have active requests to join the island. To accept, type \"" + ChatColor.WHITE + "/island invite {name}" + ChatColor.GREEN + "\".");
+						for(OfflinePlayer requester : requesters) {
+							player.sendMessage(ChatColor.BLUE + "[Island]: " + ChatColor.WHITE + requester.getName());
+						}
+					}
+				}
+			}, 5L);
 			island.wipeMembersInventoriesIfRequired();
 		} else {
 			for(Island check : Island.getAllIslands()) {
@@ -3739,6 +3887,110 @@ public class Main extends JavaPlugin implements Listener {
 		updateSpawnRegionFor(GeneratorMain.getSkyworld());
 		updateSpawnRegionFor(GeneratorMain.getSkyworldNether());
 		updateSpawnRegionFor(GeneratorMain.getSkyworldTheEnd());
+	}
+	
+	/** @return The root folder or jar file that the class loader loaded from */
+	public static final File getClasspathFile() {
+		return new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getFile());//new File(getProperty("user.dir") + File.separator + getJarFileName());
+	}
+	
+	/** @param resource The path to the resource
+	 * @return An InputStream containing the resource's contents, or
+	 *         <b><code>null</code></b> if the resource does not exist */
+	public static final InputStream getResourceAsStream(String resource) {
+		resource = resource.startsWith("/") ? resource : (resource.startsWith("assets") ? "/" + resource : "/assets" + resource);
+		if(getClasspathFile().isDirectory()) {//Development environment.(Much simpler... >_>)
+			return Main.class.getResourceAsStream(resource);
+		}
+		final String res = resource;
+		return AccessController.doPrivileged(new PrivilegedAction<InputStream>() {
+			@SuppressWarnings("resource")
+			@Override
+			public InputStream run() {
+				try {
+					final JarFile jar = new JarFile(getClasspathFile());
+					String resource = res.startsWith("/") ? res.substring(1) : res;
+					if(resource.endsWith("/")) {//Directory; list direct contents:(Mimics normal getResourceAsStream("someFolder/") behaviour)
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						Enumeration<JarEntry> entries = jar.entries();
+						while(entries.hasMoreElements()) {
+							JarEntry entry = entries.nextElement();
+							if(entry.getName().startsWith(resource) && entry.getName().length() > resource.length()) {
+								String name = entry.getName().substring(resource.length());
+								if(name.contains("/") ? (name.endsWith("/") && (name.indexOf("/") == name.lastIndexOf("/"))) : true) {//If it's a folder, we don't want the children's folders, only the parent folder's children!
+									name = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+									baos.write(name.getBytes(StandardCharsets.UTF_8));
+									baos.write('\r');
+									baos.write('\n');
+								}
+							}
+						}
+						jar.close();
+						return new ByteArrayInputStream(baos.toByteArray());
+					}
+					JarEntry entry = jar.getJarEntry(resource);
+					InputStream in = entry != null ? jar.getInputStream(entry) : null;
+					if(in == null) {
+						jar.close();
+						return in;
+					}
+					final InputStream stream = in;//Don't manage 'jar' with try-with-resources or close jar until the
+					return new InputStream() {//returned stream is closed(closing jar closes all associated InputStreams):
+						@Override
+						public int read() throws IOException {
+							return stream.read();
+						}
+						
+						@Override
+						public int read(byte b[]) throws IOException {
+							return stream.read(b);
+						}
+						
+						@Override
+						public int read(byte b[], int off, int len) throws IOException {
+							return stream.read(b, off, len);
+						}
+						
+						@Override
+						public long skip(long n) throws IOException {
+							return stream.skip(n);
+						}
+						
+						@Override
+						public int available() throws IOException {
+							return stream.available();
+						}
+						
+						@Override
+						public void close() throws IOException {
+							try {
+								jar.close();
+							} catch(IOException ignored) {
+							}
+							stream.close();
+						}
+						
+						@Override
+						public synchronized void mark(int readlimit) {
+							stream.mark(readlimit);
+						}
+						
+						@Override
+						public synchronized void reset() throws IOException {
+							stream.reset();
+						}
+						
+						@Override
+						public boolean markSupported() {
+							return stream.markSupported();
+						}
+					};
+				} catch(Throwable e) {
+					e.printStackTrace();
+					return null;
+				}
+			}
+		});
 	}
 	
 }

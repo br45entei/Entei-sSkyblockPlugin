@@ -14,19 +14,19 @@ public class SkyblockServer {
 	
 	public static final void main(String[] args) {
 		File wrkDir = new File(System.getProperty("user.dir"));
-        ProcessBuilder pb = new ProcessBuilder("java.exe", "-Xms1024m", "-Xmx2048m", "-DIReallyKnowWhatIAmDoingISwear", "-jar", wrkDir.getAbsolutePath() + File.separator + "spigot-1.12.2.jar");
-        pb.inheritIO();
-        wrkDir.mkdirs();
-        pb.directory(wrkDir);
-        File plugins = new File(wrkDir, "plugins");
-        plugins.mkdirs();
-        File exportedSkyblock = new File(wrkDir, File.separator + "plugins" + File.separator + "Entei's Skyblock.jar");
-        if(!exportedSkyblock.isFile()) {
-        	System.err.println(exportedSkyblock.getAbsolutePath());
-            System.err.print("Failed to locate built skyblock plugin!");
-            System.exit(-1);
-            return;
-        }
+		ProcessBuilder pb = new ProcessBuilder("java.exe", "-Xms1024m", "-Xmx2048m", "-DIReallyKnowWhatIAmDoingISwear", "-jar", wrkDir.getAbsolutePath() + File.separator + "spigot-1.12.2.jar");
+		pb.inheritIO();
+		wrkDir.mkdirs();
+		pb.directory(wrkDir);
+		File plugins = new File(wrkDir, "plugins");
+		plugins.mkdirs();
+		File exportedSkyblock = new File(wrkDir, File.separator + "plugins" + File.separator + "Entei's Skyblock.jar");
+		if(!exportedSkyblock.isFile()) {
+			System.err.println(exportedSkyblock.getAbsolutePath());
+			System.err.print("Failed to locate built skyblock plugin!");
+			System.exit(-1);
+			return;
+		}
 		File dest = new File(plugins, "Entei's Skyblock.jar");
 		boolean deleteDest = false;
 		for(String arg : args) {
