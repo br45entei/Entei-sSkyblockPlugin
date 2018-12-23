@@ -262,10 +262,6 @@ public class Main extends JavaPlugin implements Listener {
 		plugin = this;
 	}
 	
-	public Main(final Server server, final PluginDescriptionFile description, final File dataFolder, final File file) {
-		super(server, description, dataFolder, file);
-	}
-	
 	/** Teleports the player to the given location. If the player is riding a
 	 * vehicle, it will be dismounted prior to teleportation.
 	 *
@@ -2349,7 +2345,7 @@ public class Main extends JavaPlugin implements Listener {
 		return null;
 	}
 	
-	@EventHandler(priority = EventPriority.SUPER_SECRET_HIGHEST, ignoreCancelled = false)
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public static final void onVehicleEnterEvent(VehicleEnterEvent event) {//public static final void onEntityMountEvent(EntityMountEvent event) {//XXX Spigot Event!
 		Player player = event.getEntered() instanceof Player ? (Player) event.getEntered() : null;//event.getEntity() instanceof Player ? (Player) event.getEntity() : null;
 		//Entity vehicle = event.getVehicle();//Entity mount = event.getMount();
@@ -3540,7 +3536,15 @@ public class Main extends JavaPlugin implements Listener {
 					if(api.isPlayerCached(group, gameMode, player)) {
 						me.gnat008.perworldinventory.data.players.PWIPlayer pwp = api.getCachedPlayer(group, player);
 						if(pwp != null) {
-							api.getPlayerManager().updateCache(player, pwp);
+							try {
+								Field playerManagerField = getDeclaredField("playerManager", me.gnat008.perworldinventory.api.PerWorldInventoryAPI.class);
+								playerManagerField.setAccessible(true);
+								me.gnat008.perworldinventory.data.players.PWIPlayerManager manager = (me.gnat008.perworldinventory.data.players.PWIPlayerManager) playerManagerField.get(api);
+								if(manager != null) {
+									manager.updateCache(player, pwp);
+								}
+							} catch(SecurityException | NoSuchFieldException | IllegalAccessException ex) {
+							}
 						}
 					}
 				}
