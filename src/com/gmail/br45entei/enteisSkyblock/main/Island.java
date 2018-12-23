@@ -3447,7 +3447,7 @@ public final class Island {
 		if(this.islandType.equalsIgnoreCase("normal")) {
 			this.generateIsland();
 		} else if(this.islandType.equalsIgnoreCase("square")) {
-			this.generateIsland();
+			this.generateSquareIsland();
 		} else {
 			this.generateIsland();
 		}
