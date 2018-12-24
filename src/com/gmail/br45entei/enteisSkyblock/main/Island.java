@@ -41,6 +41,7 @@ import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
+import org.bukkit.block.Container;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Blaze;
@@ -1851,6 +1852,17 @@ public final class Island {
 				System.err.println("Unknown pname: \"" + pname + "\"!");
 			}
 		}
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff * 20.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff * 20.0)));
+		System.out.println("Scale factor of 96751: " + scaleFactor(96751));
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff * 16.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff * 16.0)));
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff * 8.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff * 8.0)));
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff * 4.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff * 4.0)));
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff * 2.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff * 2.0)));
+		System.out.println("Scale factor of " + (Main.materialLevelDropOff + 10.0) + ": " + scaleFactor(Math.round(Main.materialLevelDropOff + 10.0)));
+		System.out.println("Scale factor of " + Main.materialLevelDropOff + ": " + scaleFactor(Math.round(Main.materialLevelDropOff)));
+		System.out.println("Scale factor of 46: " + scaleFactor(46));
+		System.out.println("Scale factor of 1: " + scaleFactor(1));
+		System.out.println("Scale factor of 0: " + scaleFactor(0));
 	}
 	
 	/** Loads this Island's data from disk.
@@ -2079,46 +2091,42 @@ public final class Island {
 	 * @return This island's current level */
 	public final double calculateLevel() { //XXX calculateLevel
 		double level = 0x0.0p0;
+		Map<Material, Long> map = new HashMap<>();
 		int[] bounds = this.getBounds();
 		for(int x = bounds[0]; x <= bounds[2]; x++) {
 			for(int y = 0; y < GeneratorMain.getSkyworld().getMaxHeight(); y++) {
 				for(int z = bounds[1]; z <= bounds[3]; z++) {
 					Block block = GeneratorMain.getSkyworld().getBlockAt(x, y, z);
 					if(block != null) {
-						double l = getLevelFor(block);
-						level += l;
-						if(l < 0x0.0p0) {
-							@SuppressWarnings("deprecation")
-							String name = Main.getItemName(new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData())));
-							Main.console.sendMessage("Found illegal block on skyworld island(if block is a container, block contains illegal item(s)): " + name + " (" + x + "," + y + "," + z + ")");
+						countMaterials(block, map);
+					}
+				}
+			}
+		}
+		if(Main.getPlugin().getMaterialConfig().getBoolean("checkEntities", true)) {
+			for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(this.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
+				if(entity instanceof Player) {
+					Player player = (Player) entity;
+					if(!this.isMember(player) || (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE)) {
+						continue;
+					}
+				}
+				if(entity instanceof InventoryHolder && !(entity instanceof Monster)) {
+					InventoryHolder invHolder = (InventoryHolder) entity;
+					Inventory inv = invHolder.getInventory();
+					if(inv != null) {
+						for(ItemStack item : inv.getContents()) {
+							if(item != null) {
+								countMaterials(item, map, invHolder);
+							}
 						}
 					}
 				}
 			}
 		}
-		for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(this.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
-			if(entity instanceof Player) {
-				Player player = (Player) entity;
-				if(!this.isMember(player) || (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE)) {
-					continue;
-				}
-			}
-			if(entity instanceof InventoryHolder && !(entity instanceof Monster)) {
-				InventoryHolder invHolder = (InventoryHolder) entity;
-				Inventory inv = invHolder.getInventory();
-				if(inv != null) {
-					for(ItemStack item : inv.getContents()) {
-						if(item == null) {
-							continue;
-						}
-						double l = getLevelFor(item);
-						level += l;
-						if(l < 0x0.0p0) {
-							Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item) + " inside entity \"" + entity.getName() + "\"(" + entity.getClass().getSimpleName() + ")'s inventory at: " + entity.getLocation().toVector());
-						}
-					}
-				}
-			}
+		for(Entry<Material, Long> entry : map.entrySet()) {
+			long count = entry.getValue().longValue();
+			this.level += Main.getLevelFor(entry.getKey()) * scaleFactor(count);
 		}
 		this.level = level;
 		this.lastLevelCalculation = System.currentTimeMillis();
@@ -3768,1446 +3776,97 @@ public final class Island {
 		return world == null ? false : (world.getName().equalsIgnoreCase(GeneratorMain.getSkyworld().getName()) || (world.getName().equalsIgnoreCase(GeneratorMain.getSkyworld().getName() + "_nether") && world.getEnvironment() == Environment.NETHER) || (world.getName().equalsIgnoreCase(GeneratorMain.getSkyworld().getName() + "_the_end") && world.getEnvironment() == Environment.THE_END));
 	}
 	
-	/** @param block The block to check
-	 * @return The level of the block and any items/blocks that it may
-	 *         contain */
-	public static final double getLevelFor(Block block) {
-		@SuppressWarnings("deprecation")
-		double level = getLevelFor(new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData())));
-		if(block.getState() instanceof InventoryHolder) {
-			InventoryHolder invHolder = (InventoryHolder) block.getState();
-			Inventory inv = invHolder.getInventory();
-			if(inv != null) {
-				for(ItemStack item : inv.getContents()) {
-					if(item == null) {
-						continue;
-					}
-					double l = getLevelFor(item);
-					level += l;
-					if(l < 0x0.0p0) {
-						Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item));
-					}
-				}
-			}
-		}
-		return level;
+	/** @param count The number of materials counted so far
+	 * @return The count times a scale factor of the count.
+	 * @author Augies */
+	public static final strictfp double scaleFactor(long count) {
+		//final double e = 2.71828182846;
+		/*double scale = 2.0 / (1.0 + Math.pow(e, ((count - 1.0) / Main.materialLevelDropOff)));
+		return count * scale;*/
+		/*final double n = Main.materialLevelDropOff;
+		double r = Math.log(3.0) / (n - 1.0);
+		return Math.min(count * (2.0 / (1.0 + Math.pow(e, ((count - 1.0) * r)))), n);*/
+		/*final double n = Main.materialLevelDropOff;
+		double b = Math.log(0.5) / (n - 1.0);
+		return Math.min(count * (Math.pow(e, (b * (count - 1.0)))), n);*/
+		final double n = Main.materialLevelDropOff;
+		double r = Math.log(n) / Math.log(n / 2.0); //r is log base config/2 of config
+		return Math.pow(count, 1.0 / r); //r root of count
 	}
 	
-	/** @param item The item to check
-	 * @return The level of the item and any items/blocks that it may
-	 *         contain */
-	public static final double getLevelFor(ItemStack item) {
-		double level = 0x0.0p0;
-		if(item.getItemMeta() instanceof BlockStateMeta) {
-			BlockStateMeta im = (BlockStateMeta) item.getItemMeta();
-			if(im.getBlockState() instanceof InventoryHolder) {
-				InventoryHolder invHolder = (InventoryHolder) im.getBlockState();
+	/** @param block The block to count
+	 * @param map The map to store the results in */
+	public static final void countMaterials(Block block, Map<Material, Long> map) {
+		Long current = map.get(block.getType());
+		if(current == null) {
+			current = Long.valueOf(0);
+		}
+		double check = Main.getLevelFor(block.getType());
+		if(check < 0x0.0p0) {
+			@SuppressWarnings("deprecation")
+			String name = Main.getItemName(new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData())));
+			Main.console.sendMessage("Found illegal block on skyworld island: " + name + " (" + block.getLocation().toVector() + ")");
+		}
+		map.put(block.getType(), Long.valueOf(current.longValue() + 1));
+		if(Main.getPlugin().getMaterialConfig().getBoolean("checkContainers", true)) {
+			if(block.getState() instanceof InventoryHolder) {
+				InventoryHolder invHolder = (InventoryHolder) block.getState();
 				Inventory inv = invHolder.getInventory();
 				if(inv != null) {
-					for(ItemStack i : inv.getContents()) {
-						if(i == null) {
+					for(ItemStack item : inv.getContents()) {
+						if(item == null) {
 							continue;
 						}
-						level += getLevelFor(i);
+						countMaterials(item, map, invHolder);
 					}
 				}
 			}
 		}
-		switch(item.getType()) {
-		case ACACIA_DOOR:
-			level += 0.001;
-			break;
-		case ACACIA_DOOR_ITEM:
-			level += 0.001;
-			break;
-		case ACACIA_FENCE:
-			level += 0.001;
-			break;
-		case ACACIA_FENCE_GATE:
-			level += 0.001;
-			break;
-		case ACACIA_STAIRS:
-			level += 0.001;
-			break;
-		case ACTIVATOR_RAIL:
-			level += 0.001;
-			break;
-		case AIR:
-			level += 0.0;
-			break;
-		case ANVIL:
-			level += 0.001;
-			break;
-		case APPLE:
-			level += 0.001;
-			break;
-		case ARMOR_STAND:
-			level += 0.001;
-			break;
-		case ARROW:
-			level += 0.001;
-			break;
-		case BAKED_POTATO:
-			level += 0.001;
-			break;
-		case BANNER:
-			level += 0.001;
-			break;
-		case BARRIER:
-			level += 0.001;
-			break;
-		case BEACON:
-			level += 0.001;
-			break;
-		case BED:
-			level += 0.001;
-			break;
-		case BEDROCK:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case BED_BLOCK:
-			level += 0.001;
-			break;
-		case BEETROOT:
-			level += 0.001;
-			break;
-		case BEETROOT_BLOCK:
-			level += 0.001;
-			break;
-		case BEETROOT_SEEDS:
-			level += 0.001;
-			break;
-		case BEETROOT_SOUP:
-			level += 0.001;
-			break;
-		case BIRCH_DOOR:
-			level += 0.001;
-			break;
-		case BIRCH_DOOR_ITEM:
-			level += 0.001;
-			break;
-		case BIRCH_FENCE:
-			level += 0.001;
-			break;
-		case BIRCH_FENCE_GATE:
-			level += 0.001;
-			break;
-		case BIRCH_WOOD_STAIRS:
-			level += 0.001;
-			break;
-		case BLACK_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case BLACK_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case BLAZE_POWDER:
-			level += 0.001;
-			break;
-		case BLAZE_ROD:
-			level += 0.001;
-			break;
-		case BLUE_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case BLUE_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case BOAT:
-			level += 0.001;
-			break;
-		case BOAT_ACACIA:
-			level += 0.001;
-			break;
-		case BOAT_BIRCH:
-			level += 0.001;
-			break;
-		case BOAT_DARK_OAK:
-			level += 0.001;
-			break;
-		case BOAT_JUNGLE:
-			level += 0.001;
-			break;
-		case BOAT_SPRUCE:
-			level += 0.001;
-			break;
-		case BONE:
-			level += 0.001;
-			break;
-		case BONE_BLOCK:
-			level += 0.001;
-			break;
-		case BOOK:
-			level += 0.001;
-			break;
-		case BOOKSHELF:
-			level += 0.001;
-			break;
-		case BOOK_AND_QUILL:
-			level += 0.001;
-			break;
-		case BOW:
-			level += 0.001;
-			break;
-		case BOWL:
-			level += 0.001;
-			break;
-		case BREAD:
-			level += 0.001;
-			break;
-		case BREWING_STAND:
-			level += 0.001;
-			break;
-		case BREWING_STAND_ITEM:
-			level += 0.001;
-			break;
-		case BRICK:
-			level += 0.001;
-			break;
-		case BRICK_STAIRS:
-			level += 0.001;
-			break;
-		case BROWN_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case BROWN_MUSHROOM:
-			level += 0.001;
-			break;
-		case BROWN_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case BUCKET:
-			level += 0.001;
-			break;
-		case BURNING_FURNACE:
-			level += 0.001;
-			break;
-		case CACTUS:
-			level += 0.001;
-			break;
-		case CAKE:
-			level += 0.001;
-			break;
-		case CAKE_BLOCK:
-			level += 0.001;
-			break;
-		case CARPET:
-			level += 0.001;
-			break;
-		case CARROT:
-			level += 0.001;
-			break;
-		case CARROT_ITEM:
-			level += 0.001;
-			break;
-		case CARROT_STICK:
-			level += 0.001;
-			break;
-		case CAULDRON:
-			level += 0.001;
-			break;
-		case CAULDRON_ITEM:
-			level += 0.001;
-			break;
-		case CHAINMAIL_BOOTS:
-			level += 0.001;
-			break;
-		case CHAINMAIL_CHESTPLATE:
-			level += 0.001;
-			break;
-		case CHAINMAIL_HELMET:
-			level += 0.001;
-			break;
-		case CHAINMAIL_LEGGINGS:
-			level += 0.001;
-			break;
-		case CHEST:
-			level += 0.001;
-			break;
-		case CHORUS_FLOWER:
-			level += 0.001;
-			break;
-		case CHORUS_FRUIT:
-			level += 0.001;
-			break;
-		case CHORUS_FRUIT_POPPED:
-			level += 0.001;
-			break;
-		case CHORUS_PLANT:
-			level += 0.001;
-			break;
-		case CLAY:
-			level += 0.001;
-			break;
-		case CLAY_BALL:
-			level += 0.001;
-			break;
-		case CLAY_BRICK:
-			level += 0.001;
-			break;
-		case COAL:
-			level += 0.001;
-			break;
-		case COAL_BLOCK:
-			level += 0.001;
-			break;
-		case COAL_ORE:
-			level += 0.001;
-			break;
-		case COBBLESTONE:
-			level += 0.001;
-			break;
-		case COBBLESTONE_STAIRS:
-			level += 0.00075;
-			break;
-		case COBBLE_WALL:
-			level += 0.001;
-			break;
-		case COCOA:
-			level += 0.001;
-			break;
-		case COMMAND:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case COMMAND_CHAIN:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case COMMAND_MINECART:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case COMMAND_REPEATING:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case COMPASS:
-			level += 0.001;
-			break;
-		case CONCRETE:
-			level += 0.001;
-			break;
-		case CONCRETE_POWDER:
-			level += 0.001;
-			break;
-		case COOKED_BEEF:
-			level += 0.001;
-			break;
-		case COOKED_CHICKEN:
-			level += 0.001;
-			break;
-		case COOKED_FISH:
-			level += 0.001;
-			break;
-		case COOKED_MUTTON:
-			level += 0.001;
-			break;
-		case COOKED_RABBIT:
-			level += 0.001;
-			break;
-		case COOKIE:
-			level += 0.001;
-			break;
-		case CROPS:
-			level += 0.001;
-			break;
-		case CYAN_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case CYAN_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case DARK_OAK_DOOR:
-			level += 0.001;
-			break;
-		case DARK_OAK_DOOR_ITEM:
-			level += 0.001;
-			break;
-		case DARK_OAK_FENCE:
-			level += 0.001;
-			break;
-		case DARK_OAK_FENCE_GATE:
-			level += 0.001;
-			break;
-		case DARK_OAK_STAIRS:
-			level += 0.001;
-			break;
-		case DAYLIGHT_DETECTOR:
-			level += 0.001;
-			break;
-		case DAYLIGHT_DETECTOR_INVERTED:
-			level += 0.001;
-			break;
-		case DEAD_BUSH:
-			level += 0.001;
-			break;
-		case DETECTOR_RAIL:
-			level += 0.001;
-			break;
-		case DIAMOND:
-			level += 0.001;
-			break;
-		case DIAMOND_AXE:
-			level += 0.001;
-			break;
-		case DIAMOND_BARDING:
-			level += 0.001;
-			break;
-		case DIAMOND_BLOCK:
-			level += 1.337;
-			break;
-		case DIAMOND_BOOTS:
-			level += 0.001;
-			break;
-		case DIAMOND_CHESTPLATE:
-			level += 0.001;
-			break;
-		case DIAMOND_HELMET:
-			level += 0.001;
-			break;
-		case DIAMOND_HOE:
-			level += 0.001;
-			break;
-		case DIAMOND_LEGGINGS:
-			level += 0.001;
-			break;
-		case DIAMOND_ORE:
-			level += 0.001;
-			break;
-		case DIAMOND_PICKAXE:
-			level += 0.001;
-			break;
-		case DIAMOND_SPADE:
-			level += 0.001;
-			break;
-		case DIAMOND_SWORD:
-			level += 0.001;
-			break;
-		case DIODE:
-			level += 0.001;
-			break;
-		case DIODE_BLOCK_OFF:
-			level += 0.001;
-			break;
-		case DIODE_BLOCK_ON:
-			level += 0.001;
-			break;
-		case DIRT:
-			level += 0.001;
-			break;
-		case DISPENSER:
-			level += 0.001;
-			break;
-		case DOUBLE_PLANT:
-			level += 0.001;
-			break;
-		case DOUBLE_STEP:
-			level += 0.001;
-			break;
-		case DOUBLE_STONE_SLAB2:
-			level += 0.001;
-			break;
-		case DRAGONS_BREATH:
-			level += 0.001;
-			break;
-		case DRAGON_EGG:
-			level += 500.0;
-			break;
-		case DROPPER:
-			level += 0.001;
-			break;
-		case EGG:
-			level += 0.001;
-			break;
-		case ELYTRA:
-			level += 0.001;
-			break;
-		case EMERALD:
-			level += 30.0;
-			break;
-		case EMERALD_BLOCK:
-			level += 270.0;
-			break;
-		case EMERALD_ORE:
-			level += 45.0;
-			break;
-		case EMPTY_MAP:
-			level += 0.001;
-			break;
-		case ENCHANTED_BOOK:
-			level += 0.001;
-			break;
-		case ENCHANTMENT_TABLE:
-			level += 0.001;
-			break;
-		case ENDER_CHEST:
-			level += 0.001;
-			break;
-		case ENDER_PEARL:
-			level += 0.001;
-			break;
-		case ENDER_PORTAL:
-			level += 0.001;
-			break;
-		case ENDER_PORTAL_FRAME:
-			level += 0.001;
-			break;
-		case ENDER_STONE:
-			level += 0.01;
-			break;
-		case END_BRICKS:
-			level += 0.001;
-			break;
-		case END_CRYSTAL:
-			level += 0.001;
-			break;
-		case END_GATEWAY:
-			level += 0.001;
-			break;
-		case END_ROD:
-			level += 0.001;
-			break;
-		case EXPLOSIVE_MINECART:
-			level += 0.001;
-			break;
-		case EXP_BOTTLE:
-			level += -9999999999999999.9999999999999999;
-			break;
-		case EYE_OF_ENDER:
-			level += 0.001;
-			break;
-		case FEATHER:
-			level += 0.001;
-			break;
-		case FENCE:
-			level += 0.001;
-			break;
-		case FENCE_GATE:
-			level += 0.001;
-			break;
-		case FERMENTED_SPIDER_EYE:
-			level += 0.001;
-			break;
-		case FIRE:
-			level += 0.001;
-			break;
-		case FIREBALL:
-			level += 0.001;
-			break;
-		case FIREWORK:
-			level += 0.001;
-			break;
-		case FIREWORK_CHARGE:
-			level += 0.001;
-			break;
-		case FISHING_ROD:
-			level += 0.001;
-			break;
-		case FLINT:
-			level += 0.001;
-			break;
-		case FLINT_AND_STEEL:
-			level += 0.001;
-			break;
-		case FLOWER_POT:
-			level += 0.001;
-			break;
-		case FLOWER_POT_ITEM:
-			level += 0.001;
-			break;
-		case FROSTED_ICE:
-			level += 0.001;
-			break;
-		case FURNACE:
-			level += 0.001;
-			break;
-		case GHAST_TEAR:
-			level += 0.001;
-			break;
-		case GLASS:
-			level += 0.001;
-			break;
-		case GLASS_BOTTLE:
-			level += 0.001;
-			break;
-		case GLOWING_REDSTONE_ORE:
-			level += 0.001;
-			break;
-		case GLOWSTONE:
-			level += 0.01;
-			break;
-		case GLOWSTONE_DUST:
-			level += 0.0025;
-			break;
-		case GOLDEN_APPLE:
-			level += 0.001;
-			break;
-		case GOLDEN_CARROT:
-			level += 0.001;
-			break;
-		case GOLD_AXE:
-			level += 0.001;
-			break;
-		case GOLD_BARDING:
-			level += 0.001;
-			break;
-		case GOLD_BLOCK:
-			level += 0.001;
-			break;
-		case GOLD_BOOTS:
-			level += 0.001;
-			break;
-		case GOLD_CHESTPLATE:
-			level += 0.001;
-			break;
-		case GOLD_HELMET:
-			level += 0.001;
-			break;
-		case GOLD_HOE:
-			level += 0.001;
-			break;
-		case GOLD_INGOT:
-			level += 0.001;
-			break;
-		case GOLD_LEGGINGS:
-			level += 0.001;
-			break;
-		case GOLD_NUGGET:
-			level += 0.001;
-			break;
-		case GOLD_ORE:
-			level += 0.001;
-			break;
-		case GOLD_PICKAXE:
-			level += 0.001;
-			break;
-		case GOLD_PLATE:
-			level += 0.001;
-			break;
-		case GOLD_RECORD:
-			level += 0.001;
-			break;
-		case GOLD_SPADE:
-			level += 0.001;
-			break;
-		case GOLD_SWORD:
-			level += 0.001;
-			break;
-		case GRASS:
-			level += 0.001;
-			break;
-		case GRASS_PATH:
-			level += 0.001;
-			break;
-		case GRAVEL:
-			level += 0.001;
-			break;
-		case GRAY_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case GRAY_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case GREEN_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case GREEN_RECORD:
-			level += 0.001;
-			break;
-		case GREEN_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case GRILLED_PORK:
-			level += 0.001;
-			break;
-		case HARD_CLAY:
-			level += 0.001;
-			break;
-		case HAY_BLOCK:
-			level += 0.001;
-			break;
-		case HOPPER:
-			level += 0.001;
-			break;
-		case HOPPER_MINECART:
-			level += 0.001;
-			break;
-		case HUGE_MUSHROOM_1:
-			level += 0.001;
-			break;
-		case HUGE_MUSHROOM_2:
-			level += 0.001;
-			break;
-		case ICE:
-			level += 0.001;
-			break;
-		case INK_SACK:
-			level += 0.001;
-			break;
-		case IRON_AXE:
-			level += 0.001;
-			break;
-		case IRON_BARDING:
-			level += 0.001;
-			break;
-		case IRON_BLOCK:
-			level += 0.001;
-			break;
-		case IRON_BOOTS:
-			level += 0.001;
-			break;
-		case IRON_CHESTPLATE:
-			level += 0.001;
-			break;
-		case IRON_DOOR:
-			level += 0.001;
-			break;
-		case IRON_DOOR_BLOCK:
-			level += 0.001;
-			break;
-		case IRON_FENCE:
-			level += 0.001;
-			break;
-		case IRON_HELMET:
-			level += 0.001;
-			break;
-		case IRON_HOE:
-			level += 0.001;
-			break;
-		case IRON_INGOT:
-			level += 0.001;
-			break;
-		case IRON_LEGGINGS:
-			level += 0.001;
-			break;
-		case IRON_NUGGET:
-			level += 0.001;
-			break;
-		case IRON_ORE:
-			level += 0.001;
-			break;
-		case IRON_PICKAXE:
-			level += 0.001;
-			break;
-		case IRON_PLATE:
-			level += 0.001;
-			break;
-		case IRON_SPADE:
-			level += 0.001;
-			break;
-		case IRON_SWORD:
-			level += 0.001;
-			break;
-		case IRON_TRAPDOOR:
-			level += 0.001;
-			break;
-		case ITEM_FRAME:
-			level += 0.001;
-			break;
-		case JACK_O_LANTERN:
-			level += 0.001;
-			break;
-		case JUKEBOX:
-			level += 0.001;
-			break;
-		case JUNGLE_DOOR:
-			level += 0.001;
-			break;
-		case JUNGLE_DOOR_ITEM:
-			level += 0.001;
-			break;
-		case JUNGLE_FENCE:
-			level += 0.001;
-			break;
-		case JUNGLE_FENCE_GATE:
-			level += 0.001;
-			break;
-		case JUNGLE_WOOD_STAIRS:
-			level += 0.001;
-			break;
-		case KNOWLEDGE_BOOK:
-			level += 0.001;
-			break;
-		case LADDER:
-			level += 0.001;
-			break;
-		case LAPIS_BLOCK:
-			level += 0.001;
-			break;
-		case LAPIS_ORE:
-			level += 0.001;
-			break;
-		case LAVA:
-			level += 0.001;
-			break;
-		case LAVA_BUCKET:
-			level += 0.001;
-			break;
-		case LEASH:
-			level += 0.001;
-			break;
-		case LEATHER:
-			level += 0.001;
-			break;
-		case LEATHER_BOOTS:
-			level += 0.001;
-			break;
-		case LEATHER_CHESTPLATE:
-			level += 0.001;
-			break;
-		case LEATHER_HELMET:
-			level += 0.001;
-			break;
-		case LEATHER_LEGGINGS:
-			level += 0.001;
-			break;
-		case LEAVES:
-			level += 0.001;
-			break;
-		case LEAVES_2:
-			level += 0.001;
-			break;
-		case LEVER:
-			level += 0.001;
-			break;
-		case LIGHT_BLUE_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case LIGHT_BLUE_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case LIME_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case LIME_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case LINGERING_POTION:
-			level += 0.001;
-			break;
-		case LOG:
-			level += 0.001;
-			break;
-		case LOG_2:
-			level += 0.001;
-			break;
-		case LONG_GRASS:
-			level += 0.001;
-			break;
-		case MAGENTA_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case MAGENTA_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case MAGMA:
-			level += 0.001;
-			break;
-		case MAGMA_CREAM:
-			level += 0.001;
-			break;
-		case MAP:
-			level += 0.001;
-			break;
-		case MELON:
-			level += 0.001;
-			break;
-		case MELON_BLOCK:
-			level += 0.001;
-			break;
-		case MELON_SEEDS:
-			level += 0.001;
-			break;
-		case MELON_STEM:
-			level += 0.001;
-			break;
-		case MILK_BUCKET:
-			level += 0.001;
-			break;
-		case MINECART:
-			level += 0.001;
-			break;
-		case MOB_SPAWNER:
-			level += 500.0;
-			break;
-		case MONSTER_EGG:
-			level += 0.001;
-			break;
-		case MONSTER_EGGS:
-			level += 0.001;
-			break;
-		case MOSSY_COBBLESTONE:
-			level += 0.0015;
-			break;
-		case MUSHROOM_SOUP:
-			level += 0.001;
-			break;
-		case MUTTON:
-			level += 0.001;
-			break;
-		case MYCEL:
-			level += 0.001;
-			break;
-		case NAME_TAG:
-			level += 0.001;
-			break;
-		case NETHERRACK:
-			level += 0.001;
-			break;
-		case NETHER_BRICK:
-			level += 0.001;
-			break;
-		case NETHER_BRICK_ITEM:
-			level += 0.001;
-			break;
-		case NETHER_BRICK_STAIRS:
-			level += 0.001;
-			break;
-		case NETHER_FENCE:
-			level += 0.001;
-			break;
-		case NETHER_STALK:
-			level += 0.001;
-			break;
-		case NETHER_STAR:
-			level += 0.001;
-			break;
-		case NETHER_WARTS:
-			level += 0.001;
-			break;
-		case NETHER_WART_BLOCK:
-			level += 0.001;
-			break;
-		case NOTE_BLOCK:
-			level += 0.001;
-			break;
-		case OBSERVER:
-			level += 0.001;
-			break;
-		case OBSIDIAN:
-			level += 0.001;
-			break;
-		case ORANGE_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case ORANGE_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case PACKED_ICE:
-			level += 0.001;
-			break;
-		case PAINTING:
-			level += 0.001;
-			break;
-		case PAPER:
-			level += 0.001;
-			break;
-		case PINK_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case PINK_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case PISTON_BASE:
-			level += 0.001;
-			break;
-		case PISTON_EXTENSION:
-			level += 0.001;
-			break;
-		case PISTON_MOVING_PIECE:
-			level += 0.0;
-			break;
-		case PISTON_STICKY_BASE:
-			level += 0.001;
-			break;
-		case POISONOUS_POTATO:
-			level += 0.001;
-			break;
-		case PORK:
-			level += 0.001;
-			break;
-		case PORTAL:
-			level += 0.001;
-			break;
-		case POTATO:
-			level += 0.001;
-			break;
-		case POTATO_ITEM:
-			level += 0.001;
-			break;
-		case POTION:
-			level += 0.001;
-			break;
-		case POWERED_MINECART:
-			level += 0.001;
-			break;
-		case POWERED_RAIL:
-			level += 0.001;
-			break;
-		case PRISMARINE:
-			level += 0.001;
-			break;
-		case PRISMARINE_CRYSTALS:
-			level += 0.001;
-			break;
-		case PRISMARINE_SHARD:
-			level += 0.001;
-			break;
-		case PUMPKIN:
-			level += 0.001;
-			break;
-		case PUMPKIN_PIE:
-			level += 0.001;
-			break;
-		case PUMPKIN_SEEDS:
-			level += 0.001;
-			break;
-		case PUMPKIN_STEM:
-			level += 0.001;
-			break;
-		case PURPLE_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case PURPLE_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case PURPUR_BLOCK:
-			level += 0.001;
-			break;
-		case PURPUR_DOUBLE_SLAB:
-			level += 0.001;
-			break;
-		case PURPUR_PILLAR:
-			level += 0.001;
-			break;
-		case PURPUR_SLAB:
-			level += 0.001;
-			break;
-		case PURPUR_STAIRS:
-			level += 0.001;
-			break;
-		case QUARTZ:
-			level += 0.001;
-			break;
-		case QUARTZ_BLOCK:
-			level += 0.001;
-			break;
-		case QUARTZ_ORE:
-			level += 0.001;
-			break;
-		case QUARTZ_STAIRS:
-			level += 0.001;
-			break;
-		case RABBIT:
-			level += 0.001;
-			break;
-		case RABBIT_FOOT:
-			level += 0.001;
-			break;
-		case RABBIT_HIDE:
-			level += 0.001;
-			break;
-		case RABBIT_STEW:
-			level += 0.001;
-			break;
-		case RAILS:
-			level += 0.001;
-			break;
-		case RAW_BEEF:
-			level += 0.001;
-			break;
-		case RAW_CHICKEN:
-			level += 0.001;
-			break;
-		case RAW_FISH:
-			level += 0.001;
-			break;
-		case RECORD_10:
-			level += 0.001;
-			break;
-		case RECORD_11:
-			level += 0.001;
-			break;
-		case RECORD_12:
-			level += 0.001;
-			break;
-		case RECORD_3:
-			level += 0.001;
-			break;
-		case RECORD_4:
-			level += 0.001;
-			break;
-		case RECORD_5:
-			level += 0.001;
-			break;
-		case RECORD_6:
-			level += 0.001;
-			break;
-		case RECORD_7:
-			level += 0.001;
-			break;
-		case RECORD_8:
-			level += 0.001;
-			break;
-		case RECORD_9:
-			level += 0.001;
-			break;
-		case REDSTONE:
-			level += 0.001;
-			break;
-		case REDSTONE_BLOCK:
-			level += 0.009;
-			break;
-		case REDSTONE_COMPARATOR:
-			level += 0.001;
-			break;
-		case REDSTONE_COMPARATOR_OFF:
-			level += 0.001;
-			break;
-		case REDSTONE_COMPARATOR_ON:
-			level += 0.001;
-			break;
-		case REDSTONE_LAMP_OFF:
-			level += 0.001;
-			break;
-		case REDSTONE_LAMP_ON:
-			level += 0.001;
-			break;
-		case REDSTONE_ORE:
-			level += 0.004;
-			break;
-		case REDSTONE_TORCH_OFF:
-			level += 0.001;
-			break;
-		case REDSTONE_TORCH_ON:
-			level += 0.001;
-			break;
-		case REDSTONE_WIRE:
-			level += 0.001;
-			break;
-		case RED_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case RED_MUSHROOM:
-			level += 0.001;
-			break;
-		case RED_NETHER_BRICK:
-			level += 0.001;
-			break;
-		case RED_ROSE:
-			level += 0.001;
-			break;
-		case RED_SANDSTONE:
-			level += 0.001;
-			break;
-		case RED_SANDSTONE_STAIRS:
-			level += 0.001;
-			break;
-		case RED_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case ROTTEN_FLESH:
-			level += 0.001;
-			break;
-		case SADDLE:
-			level += 0.001;
-			break;
-		case SAND:
-			level += 0.001;
-			break;
-		case SANDSTONE:
-			level += 0.001;
-			break;
-		case SANDSTONE_STAIRS:
-			level += 0.001;
-			break;
-		case SAPLING:
-			level += 0.001;
-			break;
-		case SEA_LANTERN:
-			level += 0.001;
-			break;
-		case SEEDS:
-			level += 0.001;
-			break;
-		case SHEARS:
-			level += 0.001;
-			break;
-		case SHIELD:
-			level += 0.001;
-			break;
-		case SHULKER_SHELL:
-			level += 0.001;
-			break;
-		case SIGN:
-			level += 0.001;
-			break;
-		case SIGN_POST:
-			level += 0.001;
-			break;
-		case SILVER_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case SILVER_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case SKULL:
-			level += 0.001;
-			break;
-		case SKULL_ITEM:
-			level += 0.001;
-			break;
-		case SLIME_BALL:
-			level += 0.001;
-			break;
-		case SLIME_BLOCK:
-			level += 0.001;
-			break;
-		case SMOOTH_BRICK:
-			level += 0.008;
-			break;
-		case SMOOTH_STAIRS:
-			level += 0.006;
-			break;
-		case SNOW:
-			level += 0.001;
-			break;
-		case SNOW_BALL:
-			level += 0.00025;
-			break;
-		case SNOW_BLOCK:
-			level += 0.008;
-			break;
-		case SOIL:
-			level += 0.001;
-			break;
-		case SOUL_SAND:
-			level += 0.01;
-			break;
-		case SPECKLED_MELON:
-			level += 0.01;
-			break;
-		case SPECTRAL_ARROW:
-			level += 0.001;
-			break;
-		case SPIDER_EYE:
-			level += 0.001;
-			break;
-		case SPLASH_POTION:
-			level += 0.001;
-			break;
-		case SPONGE:
-			level += 0.001;
-			break;
-		case SPRUCE_DOOR:
-			level += 0.001;
-			break;
-		case SPRUCE_DOOR_ITEM:
-			level += 0.001;
-			break;
-		case SPRUCE_FENCE:
-			level += 0.001;
-			break;
-		case SPRUCE_FENCE_GATE:
-			level += 0.001;
-			break;
-		case SPRUCE_WOOD_STAIRS:
-			level += 0.001;
-			break;
-		case STAINED_CLAY:
-			level += 0.001;
-			break;
-		case STAINED_GLASS:
-			level += 0.001;
-			break;
-		case STAINED_GLASS_PANE:
-			level += 0.001;
-			break;
-		case STANDING_BANNER:
-			level += 0.001;
-			break;
-		case STATIONARY_LAVA:
-			level += 0.001;
-			break;
-		case STATIONARY_WATER:
-			level += 0.001;
-			break;
-		case STEP:
-			level += 0.001;
-			break;
-		case STICK:
-			level += 0.001;
-			break;
-		case STONE:
-			level += 0.002;
-			break;
-		case STONE_AXE:
-			level += 0.001;
-			break;
-		case STONE_BUTTON:
-			level += 0.001;
-			break;
-		case STONE_HOE:
-			level += 0.001;
-			break;
-		case STONE_PICKAXE:
-			level += 0.001;
-			break;
-		case STONE_PLATE:
-			level += 0.001;
-			break;
-		case STONE_SLAB2:
-			level += 0.001;
-			break;
-		case STONE_SPADE:
-			level += 0.001;
-			break;
-		case STONE_SWORD:
-			level += 0.001;
-			break;
-		case STORAGE_MINECART:
-			level += 0.001;
-			break;
-		case STRING:
-			level += 0.001;
-			break;
-		case STRUCTURE_BLOCK:
-			level += 0.001;
-			break;
-		case STRUCTURE_VOID:
-			level += 0.0;
-			break;
-		case SUGAR:
-			level += 0.001;
-			break;
-		case SUGAR_CANE:
-			level += 0.001;
-			break;
-		case SUGAR_CANE_BLOCK:
-			level += 0.001;
-			break;
-		case SULPHUR:
-			level += 0.001;
-			break;
-		case THIN_GLASS:
-			level += 0.001;
-			break;
-		case TIPPED_ARROW:
-			level += 0.001;
-			break;
-		case TNT:
-			level += 0.001;
-			break;
-		case TORCH:
-			level += 0.001;
-			break;
-		case TOTEM:
-			level += 0.001;
-			break;
-		case TRAPPED_CHEST:
-			level += 0.001;
-			break;
-		case TRAP_DOOR:
-			level += 0.001;
-			break;
-		case TRIPWIRE:
-			level += 0.001;
-			break;
-		case TRIPWIRE_HOOK:
-			level += 0.001;
-			break;
-		case VINE:
-			level += 0.001;
-			break;
-		case WALL_BANNER:
-			level += 0.001;
-			break;
-		case WALL_SIGN:
-			level += 0.001;
-			break;
-		case WATCH:
-			level += 0.001;
-			break;
-		case WATER:
-			level += 0.001;
-			break;
-		case WATER_BUCKET:
-			level += 0.001;
-			break;
-		case WATER_LILY:
-			level += 0.001;
-			break;
-		case WEB:
-			level += 0.001;
-			break;
-		case WHEAT:
-			level += 0.001;
-			break;
-		case WHITE_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case WHITE_SHULKER_BOX:
-			level += 0.001;
-			break;
-		case WOOD:
-			level += 0.001;
-			break;
-		case WOODEN_DOOR:
-			level += 0.001;
-			break;
-		case WOOD_AXE:
-			level += 0.001;
-			break;
-		case WOOD_BUTTON:
-			level += 0.001;
-			break;
-		case WOOD_DOOR:
-			level += 0.001;
-			break;
-		case WOOD_DOUBLE_STEP:
-			level += 0.001;
-			break;
-		case WOOD_HOE:
-			level += 0.001;
-			break;
-		case WOOD_PICKAXE:
-			level += 0.001;
-			break;
-		case WOOD_PLATE:
-			level += 0.001;
-			break;
-		case WOOD_SPADE:
-			level += 0.001;
-			break;
-		case WOOD_STAIRS:
-			level += 0.001;
-			break;
-		case WOOD_STEP:
-			level += 0.001;
-			break;
-		case WOOD_SWORD:
-			level += 0.001;
-			break;
-		case WOOL:
-			level += 0.001;
-			break;
-		case WORKBENCH:
-			level += 0.001;
-			break;
-		case WRITTEN_BOOK:
-			level += 0.001;
-			break;
-		case YELLOW_FLOWER:
-			level += 0.001;
-			break;
-		case YELLOW_GLAZED_TERRACOTTA:
-			level += 0.001;
-			break;
-		case YELLOW_SHULKER_BOX:
-			level += 0.001;
-			break;
-		default:
-			level += 0.0;
-			break;
+	}
+	
+	/** @param item The item to count
+	 * @param map The map to store the results in
+	 * @param holder The inventory holder carrying/containing the item, or
+	 *            <code><b>null</b></code> if the item isn't in an inventory
+	 *            holder's inventory */
+	public static final void countMaterials(ItemStack item, Map<Material, Long> map, InventoryHolder holder) {
+		if(!Main.getPlugin().getMaterialConfig().getBoolean("checkItemStacks", true)) {
+			return;
 		}
-		return level;
+		Long current = map.get(item.getType());
+		if(current == null) {
+			current = Long.valueOf(0);
+		}
+		double check = Main.getLevelFor(item.getType());
+		if(check < 0x0.0p0) {
+			Container container = holder instanceof Container ? (Container) holder : null;
+			Entity entity = holder instanceof Entity ? (Entity) holder : null;
+			if(container != null) {
+				Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item) + " inside container \"" + Main.getItemName(container.getBlock()) + "\" at: (" + container.getLocation().toVector().toString() + ")");
+			} else if(entity != null) {
+				Main.console.sendMessage("Found illegal ItemStack on skyworld island: " + Main.getItemName(item) + " inside entity \"" + entity.getName() + "\"(" + entity.getClass().getSimpleName() + ")'s inventory at: " + Main.vectorToString(entity.getLocation().toVector()));
+			} else {
+				Main.console.sendMessage("Found illegal ItemStack on skyworld island" + (holder == null ? "(no container or entity information was provided)" : "") + ": " + Main.getItemName(item) + (holder != null ? " inside inventory holder \"" + holder.getInventory().getTitle() + "\"(" + holder.getClass().getSimpleName() + ")'s inventory" : ""));
+			}
+		}
+		map.put(item.getType(), Long.valueOf(current.longValue() + 1));
+		if(Main.getPlugin().getMaterialConfig().getBoolean("checkContainers", true)) {
+			if(item.getItemMeta() instanceof BlockStateMeta) {
+				BlockStateMeta im = (BlockStateMeta) item.getItemMeta();
+				if(im.getBlockState() instanceof InventoryHolder) {
+					InventoryHolder invHolder = (InventoryHolder) im.getBlockState();
+					Inventory inv = invHolder.getInventory();
+					if(inv != null) {
+						for(ItemStack i : inv.getContents()) {
+							if(i == null) {
+								continue;
+							}
+							countMaterials(i, map, invHolder);
+						}
+					}
+				}
+			}
+		}
 	}
 	
 }

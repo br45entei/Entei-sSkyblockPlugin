@@ -145,7 +145,7 @@ import org.bukkit.util.Vector;
 
 /** @author Brian_Entei */
 @SuppressWarnings("javadoc")
-public class Main extends JavaPlugin implements Listener {
+public strictfp class Main extends JavaPlugin implements Listener {
 	
 	protected static volatile Main plugin;
 	public static volatile Server server;
@@ -156,7 +156,11 @@ public class Main extends JavaPlugin implements Listener {
 	private static volatile boolean vaultEnabled = false;
 	
 	private static volatile double defaultLevel = 0.01;
+	protected static volatile boolean checkContainers = true,
+			checkItemStacks = true, checkEntities = true;
+	protected static volatile double materialLevelDropOff = 5000.0;
 	protected static final ConcurrentHashMap<Material, Double> materialLevels = new ConcurrentHashMap<>();
+	private volatile ConfigurationSection materialLevelConfig = null;
 	
 	/** @param material The material whose level will be returned
 	 * @return The level for the given material, or <code>0.01</code> if the
@@ -261,6 +265,11 @@ public class Main extends JavaPlugin implements Listener {
 		return nms != null ? nms.getName() : null;
 	}
 	
+	@SuppressWarnings("deprecation")
+	public static final String getItemName(Block block) {
+		return getItemName(new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData())));
+	}
+	
 	public static final String getItemName(ItemStack item) {
 		if(item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
 			return item.getItemMeta().getDisplayName();
@@ -299,6 +308,10 @@ public class Main extends JavaPlugin implements Listener {
 		plugin = this;
 	}
 	
+	public static final String vectorToString(Vector vector) {
+		return "(" + limitDecimalToNumberOfPlaces(getDoubleSafe(Double.valueOf(vector.getX())), 4) + "," + limitDecimalToNumberOfPlaces(getDoubleSafe(Double.valueOf(vector.getY())), 4) + "," + limitDecimalToNumberOfPlaces(getDoubleSafe(Double.valueOf(vector.getZ())), 4) + ")";// You love me for making a function with one really long line, don't you? hehehe...
+	}
+	
 	private static final double getDoubleSafe(Double d) {
 		double value = d.doubleValue();
 		if(value != value) {
@@ -322,6 +335,7 @@ public class Main extends JavaPlugin implements Listener {
 			file.delete();
 			config = this.saveDefaultMaterialConfig();
 		}
+		this.materialLevelConfig = config;
 		if(config == null) {
 			this.getLogger().warning("Unable to load or save configuration file materialLevels.yml!");
 			this.getLogger().warning("Setting all materials to the default value of '" + new BigDecimal(defaultLevel).toPlainString() + "'.");
@@ -331,6 +345,18 @@ public class Main extends JavaPlugin implements Listener {
 			return false;
 		}
 		for(String materialName : config.getKeys(false)) {
+			if(materialName.equals("checkContainers")) {
+				checkContainers = config.getBoolean(materialName, checkContainers);
+				continue;
+			}
+			if(materialName.equals("checkItemStacks")) {
+				checkItemStacks = config.getBoolean(materialName, checkItemStacks);
+				continue;
+			}
+			if(materialName.equals("checkEntities")) {
+				checkEntities = config.getBoolean(materialName, checkEntities);
+				continue;
+			}
 			Material material = Material.getMaterial(materialName);
 			if(material == null) {
 				this.getLogger().warning("Material \"" + materialName + "\" specified in file materialLevels.yml does not exist! Ignoring...");
@@ -345,6 +371,9 @@ public class Main extends JavaPlugin implements Listener {
 	public final boolean saveMaterialConfig() {
 		File file = this.getMaterialConfigFile();
 		YamlConfiguration config = new YamlConfiguration();
+		config.set("checkContainers", Boolean.valueOf(checkContainers));
+		config.set("checkItemStacks", Boolean.valueOf(checkItemStacks));
+		config.set("checkEntities", Boolean.valueOf(checkEntities));
 		for(Entry<Material, Double> entry : materialLevels.entrySet()) {
 			config.set(entry.getKey().name(), Double.toString(getDoubleSafe(entry.getValue())));
 		}
@@ -363,6 +392,9 @@ public class Main extends JavaPlugin implements Listener {
 			return null;//Fail silently if file already exists
 		}
 		YamlConfiguration config = new YamlConfiguration();
+		config.set("checkContainers", Boolean.valueOf(checkContainers));
+		config.set("checkItemStacks", Boolean.valueOf(checkItemStacks));
+		config.set("checkEntities", Boolean.valueOf(checkEntities));
 		for(Material material : Material.values()) {
 			config.set(material.name(), Double.valueOf(0.01));
 		}
@@ -374,6 +406,13 @@ public class Main extends JavaPlugin implements Listener {
 			System.err.flush();
 		}
 		return config;
+	}
+	
+	public final ConfigurationSection getMaterialConfig() {
+		if(this.materialLevelConfig == null) {
+			this.materialLevelConfig = this.getMaterialLevelConfig();
+		}
+		return this.materialLevelConfig == null ? new YamlConfiguration() : this.materialLevelConfig;
 	}
 	
 	private final ConfigurationSection getMaterialLevelConfig() {
