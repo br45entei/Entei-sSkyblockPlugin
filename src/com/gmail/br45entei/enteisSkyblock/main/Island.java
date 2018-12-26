@@ -40,6 +40,7 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Container;
 import org.bukkit.entity.AbstractHorse;
@@ -118,27 +119,28 @@ public final class Island {
 	protected static volatile double spawnRate = EVERY_TICK;
 	
 	protected static final void stopSpawnTask() {
-		//if(spawnTID != -1) {
-		//	Main.scheduler.cancelTask(spawnTID);
-		//	spawnTID = -1;
-		//}
 		state[0] = false;
-		while(spawnThread != null && spawnThread.isAlive()) {
+		if(spawnTID != -1) {
+			Main.scheduler.cancelTask(spawnTID);
+			spawnTID = -1;
+		}
+		/*while(spawnThread != null && spawnThread.isAlive()) {
 			try {
 				Thread.sleep(10L);
 			} catch(InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
 		}
-		spawnThread = null;
+		spawnThread = null;*/
 	}
 	
 	protected static final boolean[] state = new boolean[] {true};
-	protected static volatile Thread spawnThread = null;
+	//protected static volatile Thread spawnThread = null;
 	
 	/** @return Whether or not the spawn task is running */
 	public static final boolean isSpawnTaskRunning() {
-		return spawnThread != null && spawnThread.isAlive();//spawnTID == -1 ? false : Main.scheduler.isCurrentlyRunning(spawnTID);
+		//return spawnThread != null && spawnThread.isAlive();
+		return spawnTID == -1 ? false : Main.scheduler.isCurrentlyRunning(spawnTID);
 	}
 	
 	//@SuppressWarnings("deprecation")
@@ -146,51 +148,51 @@ public final class Island {
 		stopSpawnTask();
 		state[0] = true;
 		final boolean[] lastTaskType = new boolean[1];
-		//spawnTID = Main.scheduler.scheduleAsyncRepeatingTask(Main.plugin, () -> {
-		spawnThread = new Thread(() -> {
-			while(state[0]) {
-				for(Island island : islands) {
-					if(island.getOwner() == null || island.getMembersOnIsland().isEmpty()) {
-						continue;
-					}
-					//Main.console.sendMessage(ChatColor.WHITE + "Attempting to spawn on island \"" + island.getID() + "(" + island.getOwnerName() + ChatColor.RESET + ChatColor.WHITE + ")\"...");
-					if(lastTaskType[0]) {
-						int spawned = spawnAnimalsOn(island);
-						if(spawned == 0) {
-							spawned = spawnHostileMobsOn(island);
-							lastTaskType[0] = !lastTaskType[0];
-							//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-							//	Main.server.getPlayer(island.getOwner()).sendMessage(".Spawned " + spawned + " hostile mobs.");
-							//}
-						}// else {
-							//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-							//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
-							//}
-							//}
-					} else {
-						//int spawned = //
-						spawnHostileMobsOn(island);
+		spawnTID = Main.scheduler.runTaskTimer(Main.plugin, () -> {
+			//spawnThread = new Thread(() -> {
+			//while(state[0]) {
+			for(Island island : islands) {
+				if(island.getOwner() == null || island.getMembersOnIsland().isEmpty()) {
+					continue;
+				}
+				//Main.console.sendMessage(ChatColor.WHITE + "Attempting to spawn on island \"" + island.getID() + "(" + island.getOwnerName() + ChatColor.RESET + ChatColor.WHITE + ")\"...");
+				if(lastTaskType[0]) {
+					int spawned = spawnAnimalsOn(island);
+					if(spawned == 0) {
+						spawned = spawnHostileMobsOn(island);
+						lastTaskType[0] = !lastTaskType[0];
 						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-						//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " hostile mobs.");
+						//	Main.server.getPlayer(island.getOwner()).sendMessage(".Spawned " + spawned + " hostile mobs.");
 						//}
-					}
-				}
-				lastTaskType[0] = !lastTaskType[0];
-				String tickSpeed = GeneratorMain.getSkyworld().getGameRuleValue("randomTickSpeed");
-				if(!Main.isInt(tickSpeed)) {
-					tickSpeed = "20";
-					GeneratorMain.getSkyworld().setGameRuleValue("randomTickSpeed", tickSpeed);
-				}
-				try {
-					Thread.sleep(Math.round(Math.min(1000.0, Math.max(10.0, spawnRate * (1.0 / Integer.parseInt(tickSpeed))))));
-				} catch(InterruptedException e) {
-					Thread.currentThread().interrupt();
+					}// else {
+						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+						//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
+						//}
+						//}
+				} else {
+					//int spawned = //
+					spawnHostileMobsOn(island);
+					//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+					//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " hostile mobs.");
+					//}
 				}
 			}
-		}, "Entei's Skyblock Mob Spawning Thread");
-		spawnThread.setDaemon(true);
-		spawnThread.start();
-		//}, 40L, 300L);// 300 / 20 = 15 seconds
+			lastTaskType[0] = !lastTaskType[0];
+			/*String tickSpeed = GeneratorMain.getSkyworld().getGameRuleValue("randomTickSpeed");
+			if(!Main.isInt(tickSpeed)) {
+				tickSpeed = "20";
+				GeneratorMain.getSkyworld().setGameRuleValue("randomTickSpeed", tickSpeed);
+			}
+			try {
+				Thread.sleep(Math.round(Math.min(1000.0, Math.max(10.0, spawnRate * (1.0 / Integer.parseInt(tickSpeed))))));
+			} catch(InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}*/
+			//}
+			//}, "Entei's Skyblock Mob Spawning Thread");
+			//spawnThread.setDaemon(true);
+			//spawnThread.start();
+		}, 40L, 300L).getTaskId();// 300 / 20 = 15 seconds
 	}
 	
 	/** @return A list containing all currently loaded Islands */
@@ -1021,23 +1023,23 @@ public final class Island {
 		if(!state[0] || spawnsToPerform.isEmpty()) {
 			return 0;
 		}
-		Main.scheduler.runTask(Main.plugin, () -> {
-			int currentCount = hostilesOnIsland;
-			for(Entry<double[], Class<? extends Monster>> entry : spawnsToPerform.entrySet()) {
-				if(currentCount >= hostilesPerIsland) {
-					break;
-				}
-				double[] loc = entry.getKey();
-				Monster monster = world.spawn(new Location(world, loc[0], loc[1], loc[2]), entry.getValue());
-				currentCount++;
-				if(monster.getType() == EntityType.ZOMBIE_VILLAGER) {
-					monster.setRemoveWhenFarAway(false);
-				}
+		//Main.scheduler.runTask(Main.plugin, () -> {
+		int currentCount = hostilesOnIsland;
+		for(Entry<double[], Class<? extends Monster>> entry : spawnsToPerform.entrySet()) {
+			if(currentCount >= hostilesPerIsland) {
+				break;
 			}
-			for(Player player : island.getMembersOnIsland()) {
-				updateScoreBoardFor(player, currentCount, animalsOnIsland);
+			double[] loc = entry.getKey();
+			Monster monster = world.spawn(new Location(world, loc[0], loc[1], loc[2]), entry.getValue());
+			currentCount++;
+			if(monster.getType() == EntityType.ZOMBIE_VILLAGER) {
+				monster.setRemoveWhenFarAway(false);
 			}
-		});
+		}
+		for(Player player : island.getMembersOnIsland()) {
+			updateScoreBoardFor(player, currentCount, animalsOnIsland);
+		}
+		//});
 		return spawnsToPerform.size();
 	}
 	
@@ -1075,22 +1077,22 @@ public final class Island {
 			return;
 		}
 		final int _wolvesOnIsland = wolvesOnIsland;
-		Main.scheduler.runTask(Main.plugin, () -> {
-			int currentCount = _wolvesOnIsland;
-			for(double[] loc : spawnsToPerform) {
-				if(currentCount >= wolvesPerIsland) {
-					//Main.console.sendMessage("Too many wolves on island already!");
-					break;
-				}
-				Wolf wolf = world.spawn(new Location(world, loc[0], loc[1], loc[2]), Wolf.class);
-				currentCount++;
-				AttributeInstance atin = wolf.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-				double newMax = atin.getValue() * 2.0;
-				atin.setBaseValue(newMax);
-				wolf.setHealth(newMax);
-				wolf.setRemoveWhenFarAway(false);
+		//Main.scheduler.runTask(Main.plugin, () -> {
+		int currentCount = _wolvesOnIsland;
+		for(double[] loc : spawnsToPerform) {
+			if(currentCount >= wolvesPerIsland) {
+				//Main.console.sendMessage("Too many wolves on island already!");
+				break;
 			}
-		});
+			Wolf wolf = world.spawn(new Location(world, loc[0], loc[1], loc[2]), Wolf.class);
+			currentCount++;
+			AttributeInstance atin = wolf.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+			double newMax = atin.getValue() * 2.0;
+			atin.setBaseValue(newMax);
+			wolf.setHealth(newMax);
+			wolf.setRemoveWhenFarAway(false);
+		}
+		//});
 	}
 	
 	/** @param island The Island on which animals will attempt to be spawned
@@ -1147,41 +1149,41 @@ public final class Island {
 		if(!state[0] || spawnsToPerform.isEmpty()) {
 			return 0;
 		}
-		Main.scheduler.runTask(Main.plugin, () -> {
-			int currentCount = animalsOnIsland;
-			for(Entry<double[], Class<? extends Animals>> entry : spawnsToPerform.entrySet()) {
-				if(currentCount >= animalsPerIsland) {
-					break;
-				}
-				double[] loc = entry.getKey();
-				Location location = new Location(world, loc[0], loc[1], loc[2]);
-				boolean crammingCheck = ignoreCramming ? true : getNearbyEntitiesByType(world, Animals.class, location, 12).size() < 12;
-				if(!crammingCheck) {
-					continue;
-				}
-				Class<? extends Animals> spawn = entry.getValue();
-				Animals animal = world.spawn(location, spawn);
-				currentCount++;
-				animal.setCustomName(spawn.getSimpleName().replace("MushroomCow", "MooShroom"));
-				animal.setCustomNameVisible(false);
-				if(spawn == Horse.class || spawn == Donkey.class) {
-					AbstractHorse horse = (AbstractHorse) animal;
-					int rand = Main.random.nextInt(256);
-					if(rand == 137 || rand == 186) {// 2/256 chance
-						horse.getInventory().setSaddle(new ItemStack(Material.SADDLE, 1));
-						if(rand == 186 && animal instanceof ChestedHorse) {// 1/256 chance
-							((ChestedHorse) animal).setCarryingChest(true);
-						}
-						if(rand == 137 && horse.getInventory() instanceof HorseInventory) {// 1/256 chance
-							((HorseInventory) horse.getInventory()).setArmor(new ItemStack(Material.DIAMOND_BARDING));
-						}
+		//Main.scheduler.runTask(Main.plugin, () -> {
+		int currentCount = animalsOnIsland;
+		for(Entry<double[], Class<? extends Animals>> entry : spawnsToPerform.entrySet()) {
+			if(currentCount >= animalsPerIsland) {
+				break;
+			}
+			double[] loc = entry.getKey();
+			Location location = new Location(world, loc[0], loc[1], loc[2]);
+			boolean crammingCheck = ignoreCramming ? true : getNearbyEntitiesByType(world, Animals.class, location, 12).size() < 12;
+			if(!crammingCheck) {
+				continue;
+			}
+			Class<? extends Animals> spawn = entry.getValue();
+			Animals animal = world.spawn(location, spawn);
+			currentCount++;
+			animal.setCustomName(spawn.getSimpleName().replace("MushroomCow", "MooShroom"));
+			animal.setCustomNameVisible(false);
+			if(spawn == Horse.class || spawn == Donkey.class) {
+				AbstractHorse horse = (AbstractHorse) animal;
+				int rand = Main.random.nextInt(256);
+				if(rand == 137 || rand == 186) {// 2/256 chance
+					horse.getInventory().setSaddle(new ItemStack(Material.SADDLE, 1));
+					if(rand == 186 && animal instanceof ChestedHorse) {// 1/256 chance
+						((ChestedHorse) animal).setCarryingChest(true);
+					}
+					if(rand == 137 && horse.getInventory() instanceof HorseInventory) {// 1/256 chance
+						((HorseInventory) horse.getInventory()).setArmor(new ItemStack(Material.DIAMOND_BARDING));
 					}
 				}
 			}
-			for(Player player : island.getMembersOnIsland()) {
-				updateScoreBoardFor(player, hostilesOnIsland, currentCount);
-			}
-		});
+		}
+		for(Player player : island.getMembersOnIsland()) {
+			updateScoreBoardFor(player, hostilesOnIsland, currentCount);
+		}
+		//});
 		return spawnsToPerform.size();
 	}
 	
@@ -3098,18 +3100,7 @@ public final class Island {
 		World world = GeneratorMain.getSkyworld();
 		int X = this.x * GeneratorMain.island_Range;
 		int Z = this.z * GeneratorMain.island_Range;
-		int[] bounds = this.getBounds();
-		int minX = bounds[0];
-		int minZ = bounds[1];
-		int maxX = bounds[2];
-		int maxZ = bounds[3];
-		for(int x = minX; x <= maxX; x++) {
-			for(int y = 0; y < world.getMaxHeight(); y++) {
-				for(int z = minZ; z <= maxZ; z++) {
-					world.getBlockAt(x, y, z).setType(Material.AIR, false);
-				}
-			}
-		}
+		this.deleteBlocks(false);
 		world.getBlockAt(X, GeneratorMain.island_Height, Z).setType(Material.OBSIDIAN, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 1, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.SAND, false);
@@ -3305,18 +3296,7 @@ public final class Island {
 		
 		int X = this.x * GeneratorMain.island_Range;
 		int Z = this.z * GeneratorMain.island_Range;
-		int[] bounds = this.getBounds();
-		int minX = bounds[0];
-		int minZ = bounds[1];
-		int maxX = bounds[2];
-		int maxZ = bounds[3];
-		for(int x = minX; x <= maxX; x++) {
-			for(int y = 0; y < world.getMaxHeight(); y++) {
-				for(int z = minZ; z <= maxZ; z++) {
-					world.getBlockAt(x, y, z).setType(Material.AIR, false);
-				}
-			}
-		}
+		this.deleteBlocks(false);
 		world.getBlockAt(X, GeneratorMain.island_Height, Z).setType(Material.OBSIDIAN, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 1, Z).setType(Material.DIRT, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.DIRT, false);
@@ -3502,8 +3482,10 @@ public final class Island {
 	/** Deletes this island's blocks. This method does not wipe member
 	 * inventories or remove any regions.
 	 * 
+	 * @param restoreBiome Whether or not the biome should be set to OCEAN
+	 * 
 	 * @return This Island */
-	public final Island deleteBlocks() {
+	public final Island deleteBlocks(boolean restoreBiome) {
 		World world = GeneratorMain.getSkyworld();
 		int[] bounds = this.getBounds();
 		int minX = bounds[0];
@@ -3513,10 +3495,21 @@ public final class Island {
 		for(int x = minX; x <= maxX; x++) {
 			for(int y = 0; y < world.getMaxHeight(); y++) {
 				for(int z = minZ; z <= maxZ; z++) {
-					world.getBlockAt(x, y, z).setType(Material.AIR, false);
-					world.getBlockAt(x, y, z).setBiome(Biome.OCEAN);
+					Block block = world.getBlockAt(x, y, z);
+					BlockState state = block.getState();
+					if(state instanceof InventoryHolder) {
+						((InventoryHolder) state).getInventory().clear();//Prevent chests, etc. from dropping items, as they might land on the blocks that are about to be generated
+						state.update(true, true);
+					}
+					block.setType(Material.AIR, false);
+					if(restoreBiome) {
+						block.setBiome(Biome.OCEAN);
+					}
 				}
 			}
+		}
+		if(restoreBiome) {
+			this.biome = Biome.OCEAN;
 		}
 		return this;
 	}
@@ -3527,7 +3520,7 @@ public final class Island {
 	 * 
 	 * @return This Island */
 	public final Island deleteIsland() {
-		this.deleteBlocks();
+		this.deleteBlocks(true);
 		/*this.deleteAllRegions();
 		islands.remove(this);
 		FileDeleteStrategy.FORCE.deleteQuietly(this.getSaveFile());*/

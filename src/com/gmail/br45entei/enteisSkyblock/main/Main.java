@@ -1492,12 +1492,12 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					return true;
 				}
 				Island check = Island.getIslandNearest(user.getLocation());
-				if(args.length == 1 && args[0].equalsIgnoreCase("blocks")) {
+				if(args.length >= 1 && args[0].equalsIgnoreCase("blocks")) {
 					if(check == null) {
 						check = Island.getOrCreateIslandNearest(user.getLocation());
 						Island.islands.remove(check);
 					}
-					check.deleteBlocks();
+					check.deleteBlocks(args.length == 2 && args[1].equalsIgnoreCase("true"));
 					sender.sendMessage(ChatColor.YELLOW + "Successfully wiped all blocks within the island at " + ChatColor.WHITE + check.getID() + ChatColor.YELLOW + ".");
 					sender.sendMessage(ChatColor.YELLOW + "If the island had members, their inventories were not affected.");
 				} else if(args.length == 0) {
@@ -1514,7 +1514,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						sender.sendMessage(ChatColor.YELLOW + "If there are leftover blocks in the island area, then type \"" + ChatColor.WHITE + "/delete blocks" + ChatColor.YELLOW + "\" instead, which only deletes blocks.");
 					}
 				} else {
-					sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/delete [blocks]");
+					sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/delete [blocks] [setBiomeToOcean]");
 				}
 			} else {
 				sender.sendMessage(ChatColor.DARK_RED + "This command can only be used by players.");
