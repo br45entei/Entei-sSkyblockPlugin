@@ -10,6 +10,7 @@ import com.gmail.br45entei.enteisSkyblock.vault.VaultHandler;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator.SkyworldBlockPopulator;
+import com.gmail.br45entei.util.CodeUtil;
 import com.gmail.br45entei.util.ResourceUtil;
 
 import java.io.ByteArrayInputStream;
@@ -29,6 +30,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -44,6 +47,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FilenameUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -322,6 +326,178 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 		return value;
 	}
+	
+	public static final void convertMaterialValuesFromUSkyblock(File file) {
+		YamlConfiguration converted = fromUSkyblock(file);
+		File dest = new File(file.getParentFile(), FilenameUtils.getBaseName(file.getName()) + "-converted." + FilenameUtils.getExtension(file.getName()));
+		try {
+			converted.save(dest);
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static final YamlConfiguration fromUSkyblock(File file) {
+		YamlConfiguration config = new YamlConfiguration();
+		config.set("checkContainers", Boolean.valueOf(checkContainers));
+		config.set("checkItemStacks", Boolean.valueOf(checkItemStacks));
+		config.set("checkEntities", Boolean.valueOf(checkEntities));
+		YamlConfiguration fromFile = new YamlConfiguration();
+		try {
+			fromFile.load(file);
+		} catch(IOException | InvalidConfigurationException e) {
+			e.printStackTrace();
+			return config;
+		}
+		double pointsPerLevel = fromFile.getDouble("general.pointsPerLevel", 1.0);// Divide by
+		double defaultValue = fromFile.getDouble("general.default", 1.0);
+		//1/1-6: 20
+		ConfigurationSection blockValues = fromFile.getConfigurationSection("blockValues");
+		if(blockValues == null) {
+			return config;
+		}
+		//MaterialName:DataValue, Level
+		HashMap<String, Integer> dataValues = new HashMap<>();
+		
+		for(String key : blockValues.getKeys(false)) {
+			String materialID = key;
+			if(key.contains("/")) {
+				String[] split = key.split(Pattern.quote("/"));
+				materialID = split[0];
+				if(!Main.isInt(materialID)) {
+					System.err.println("Skipping bad material id \"" + materialID + "\"...");
+					continue;
+				}
+				//XXX This won't work for Minecraft 1.13+, so we'll need to add our own converter once we update to 1.13 using the Material.java class from 1.12.2
+				@SuppressWarnings("deprecation")
+				Material material = Material.getMaterial(Integer.parseInt(materialID));
+				String dataValue = split.length > 1 ? (split.length == 2 ? split[1] : CodeUtil.stringArrayToString(split, '/', 1)) : "0";
+				if(dataValue.contains("-")) {
+					split = dataValue.split(Pattern.quote("-"));
+					String start = split[0];
+					String end = "15";
+					if(split.length == 2) {
+						end = split[1];
+					}
+					if(Main.isInt(start) && Main.isInt(end)) {
+						int s = Integer.parseInt(start),
+								e = Integer.parseInt(end);
+						Integer value = Integer.valueOf(blockValues.getInt(key, 0));
+						for(int i = Math.min(s, e); i <= Math.max(s, e); i++) {
+							dataValues.put(material.name() + ":" + Integer.toString(i), value);
+						}
+					}
+				} else {
+					if(Main.isInt(dataValue)) {
+						dataValues.put(material.name() + ":" + Integer.valueOf(dataValue), Integer.valueOf(blockValues.getInt(key, 0)));
+					}
+				}
+			} else {
+				if(!Main.isInt(materialID)) {
+					System.err.println("Skipping bad material id \"" + materialID + "\"...");
+					continue;
+				}
+				@SuppressWarnings("deprecation")
+				Material material = Material.getMaterial(Integer.parseInt(materialID));
+				Integer value = Integer.valueOf(blockValues.getInt(key, 0));
+				dataValues.put(material.name() + ":0", value);
+			}
+		}
+		List<String> keySet = new ArrayList<>(dataValues.keySet());
+		//System.out.println("keySet size: " + keySet.size());
+		Collections.sort(keySet, NUMERICAL_CASE_INSENTITIVE_ORDER);
+		for(Material material : Material.values()) {
+			ConfigurationSection mem = config.createSection(material.name());
+			boolean defined = false;
+			for(String key : keySet) {
+				Integer value = dataValues.get(key);
+				if(key.startsWith(material.name() + ":")) {
+					defined = true;
+					String dataValue = key.substring((material.name() + ":").length());
+					mem.set(dataValue, Double.valueOf(value.intValue() / pointsPerLevel));
+				}
+			}
+			if(!defined) {
+				mem.set("0", Double.valueOf(defaultValue / pointsPerLevel));
+			}
+		}
+		return config;
+	}
+	
+	protected static final Comparator<String> NUMERICAL_CASE_INSENTITIVE_ORDER = new Comparator<String>() {
+		
+		public final int indexOfNumeral(String s, boolean last) {
+			int index = 0;
+			int first = -1;
+			int lastIndex = -1;
+			for(char c : s.toCharArray()) {
+				if(Character.isDigit(c)) {
+					if(!last) {
+						if(s.indexOf(':') > index) {//for input string "LEAVES_2:12" and "LEAVES_2:7" this would return incorrect index 7 for start and 7 for end, resulting in the comparator comparing 7 - 7 == 0, meaning the two are identical
+							index++;
+							first = -1;
+							lastIndex = -1;
+							continue;
+						}
+						return index;
+					}
+					lastIndex = index;
+					if(first == -1) {
+						first = index;
+					}
+				} else {
+					if(first != -1) {
+						break;//Break on first sign of non-digit after having found one
+					}
+				}
+				index++;
+			}
+			return last ? lastIndex : first;
+		}
+		
+		@Override
+		public int compare(String s1, String s2) {
+			if(s1 == s2 || s1.equalsIgnoreCase(s2)) {
+				System.out.println("s1 equals s2: " + s1);
+				return 0;
+			}
+			int digitIndex1 = this.indexOfNumeral(s1, false);
+			int lastDigitIndex1 = this.indexOfNumeral(s1, true);
+			int digitIndex2 = this.indexOfNumeral(s2, false);
+			int lastDigitIndex2 = this.indexOfNumeral(s2, true);
+			if(digitIndex1 != -1) {
+				String prefix1 = s1.substring(0, digitIndex1);
+				if(!s2.toLowerCase().startsWith(prefix1.toLowerCase())) {
+					return String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+				}
+				if(digitIndex2 != -1) {
+					String prefix2 = s2.substring(0, digitIndex2);
+					//System.out.println("prefix1: \"" + prefix1 + "\"; prefix2: \"" + prefix2 + "\";");
+					if(!prefix1.equalsIgnoreCase(prefix2)) {
+						return String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+					}
+					String digit1 = s1.substring(digitIndex1, (lastDigitIndex1 == -1 || lastDigitIndex1 <= digitIndex1) ? digitIndex1 + 1 : lastDigitIndex1 + 1);
+					String digit2 = s2.substring(digitIndex2, (lastDigitIndex2 == -1 || lastDigitIndex2 <= digitIndex2) ? digitIndex2 + 1 : lastDigitIndex2 + 1);
+					//System.out.println("digit1: \"" + digit1 + "\"; digit2: \"" + digit2 + "\";");
+					if(Main.isInt(digit1) && Main.isInt(digit2)) {
+						int compare = Integer.parseInt(digit1) - Integer.parseInt(digit2);
+						//System.out.println("return " + Integer.toString(compare));
+						return compare;
+					} else if(Main.isInt(digit1)) {
+						//System.out.println("return 1");
+						return 1;
+					} else {
+						//System.out.println("return s1 equals s2");
+						return String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+					}
+				}
+				//System.out.println("s2 does not contain any digits: " + s2);
+				return 1;
+			}
+			//System.out.println("s1 does not contain any digits: " + s1);
+			return String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+		}
+	};
 	
 	public final File getMaterialConfigFile() {
 		return new File(this.getDataFolder(), "materialLevels.yml");
@@ -1790,6 +1966,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		System.out.println(capitalizeFirstLetterOfEachWord("lava buckets r cool"));
 		System.out.println(capitalizeFirstLetterOfEachWord("SMOOTH_STONE".toLowerCase(), '_', ' '));
 		
+		convertMaterialValuesFromUSkyblock(new File(new File(System.getProperty("user.dir") + File.separator + "plugins" + File.separator + "uSkyblock"), "levelConfig.yml"));
 	}
 	
 	/** @param str The String to capitalize each word's first letter of
