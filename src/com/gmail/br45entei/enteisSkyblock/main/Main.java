@@ -405,7 +405,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 		List<String> keySet = new ArrayList<>(dataValues.keySet());
 		//System.out.println("keySet size: " + keySet.size());
-		Collections.sort(keySet, NUMERICAL_CASE_INSENTITIVE_ORDER);
+		Collections.sort(keySet, NUMERICAL_CASE_INSENSITIVE_ORDER);
 		for(Material material : Material.values()) {
 			ConfigurationSection mem = config.createSection(material.name());
 			boolean defined = false;
@@ -424,7 +424,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		return config;
 	}
 	
-	protected static final Comparator<String> NUMERICAL_CASE_INSENTITIVE_ORDER = new Comparator<String>() {
+	protected static final Comparator<String> NUMERICAL_CASE_INSENSITIVE_ORDER = new Comparator<String>() {
 		
 		public final int indexOfNumeral(String s, boolean last) {
 			int index = 0;
@@ -725,6 +725,52 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 				}
 				Island island = Island.getIslandFor(user);
+				if(args.length >= 1 && (args[0].equalsIgnoreCase("mobs") || args[0].equalsIgnoreCase("animals"))) {
+					if(island == null) {
+						sender.sendMessage(ChatColor.RED + "You are not a member of an island!");
+						sender.sendMessage(ChatColor.GREEN + "To get started, type \"" + ChatColor.WHITE + "/island create" + ChatColor.GREEN + "\" or \"" + ChatColor.WHITE + "/island join {memberName}" + ChatColor.GREEN + "\".");
+						return true;
+					}
+					if(args[0].equalsIgnoreCase("mobs") && !user.hasPermission("skyblock.changeMobSpawning")) {
+						sender.sendMessage(ChatColor.RED + "You do not have permission to enable, disable, or change the hostile mob spawning settings for this island.");
+						return true;
+					}
+					if(args[0].equalsIgnoreCase("animals") && !user.hasPermission("skyblock.changeAnimalSpawning")) {
+						sender.sendMessage(ChatColor.RED + "You do not have permission to enable, disable, or change the animal spawning settings for this island.");
+						return true;
+					}
+					if(args.length == 1) {
+						if(args[0].equalsIgnoreCase("mobs")) {
+							sender.sendMessage(ChatColor.GREEN + "Hostile mob spawning is " + (island.isMobSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+						} else {
+							sender.sendMessage(ChatColor.GREEN + "Animal spawning is " + (island.isAnimalSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+						}
+						return true;
+					}
+					if(args.length == 2) {
+						if(args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true") || args[1].equalsIgnoreCase("enable") || args[1].equalsIgnoreCase("enabled")) {
+							if(args[0].equalsIgnoreCase("mobs")) {
+								island.setMobSpawningEnabled(true);
+								sender.sendMessage(ChatColor.GREEN + "Hostile mob spawning is now " + (island.isMobSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+							} else {
+								island.setAnimalSpawningEnabled(true);
+								sender.sendMessage(ChatColor.GREEN + "Animal spawning is now " + (island.isAnimalSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+							}
+							return true;
+						} else if(args[1].equalsIgnoreCase("off") || args[1].equalsIgnoreCase("false") || args[1].equalsIgnoreCase("disable") || args[1].equalsIgnoreCase("disabled")) {
+							if(args[0].equalsIgnoreCase("mobs")) {
+								island.setMobSpawningEnabled(false);
+								sender.sendMessage(ChatColor.GREEN + "Hostile mob spawning is now " + (island.isMobSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+							} else {
+								island.setAnimalSpawningEnabled(false);
+								sender.sendMessage(ChatColor.GREEN + "Animal spawning is now " + (island.isAnimalSpawningEnabled() ? ChatColor.DARK_GREEN + "enabled" : ChatColor.DARK_RED + "disabled") + ChatColor.GREEN + " for this island.");
+							}
+							return true;
+						}
+					}
+					sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + (args[0].equalsIgnoreCase("mobs") ? "mobs" : "animals") + " [on|off]" + ChatColor.DARK_GREEN + ": Turn hostile mob or animal spawning on or off for this island");
+					return true;
+				}
 				if(args.length == 2 && (args[0].equalsIgnoreCase("trust") || args[0].equalsIgnoreCase("untrust"))) {
 					if(island == null) {
 						sender.sendMessage(ChatColor.RED + "You are not a member of an island!");
@@ -1369,6 +1415,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " untrust {playerName|list}" + ChatColor.DARK_GREEN + ": Untrust the given player on your island.");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " lock [true/on|false/off]" + ChatColor.DARK_GREEN + ": Set or view whether or not your island is locked to non-members");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " biome {biome}" + ChatColor.DARK_GREEN + ": Set or view your island's biome");
+					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " {mobs|animals} [on|off]" + ChatColor.DARK_GREEN + ": Enable/disable hostile mob/animal spawning for the island");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " leave" + ChatColor.GREEN + ": Allows you to leave the island. If you are the owner, you'll need to pass in a fellow member's name here so that they can be the new owner");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " restart" + ChatColor.YELLOW + ": Allows you to restart the island if you are the owner. All of the island's blocks will be wiped and the island will be regenerated back to its' initial state.");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " delete" + ChatColor.RED + ": Allows you to completely delete the island if you are the owner. All of the island's blocks will be wiped, and all of its' members(including you) will have their inventories wiped as well.");

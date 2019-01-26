@@ -54,6 +54,7 @@ import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Donkey;
 import org.bukkit.entity.EnderDragon;
 import org.bukkit.entity.Enderman;
+import org.bukkit.entity.Endermite;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Evoker;
@@ -72,6 +73,7 @@ import org.bukkit.entity.Pig;
 import org.bukkit.entity.PigZombie;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Sheep;
+import org.bukkit.entity.Shulker;
 import org.bukkit.entity.Skeleton;
 import org.bukkit.entity.Slime;
 import org.bukkit.entity.Spider;
@@ -157,24 +159,28 @@ public final class Island {
 				}
 				//Main.console.sendMessage(ChatColor.WHITE + "Attempting to spawn on island \"" + island.getID() + "(" + island.getOwnerName() + ChatColor.RESET + ChatColor.WHITE + ")\"...");
 				if(lastTaskType[0]) {
-					int spawned = spawnAnimalsOn(island);
-					if(spawned == 0) {
-						spawned = spawnHostileMobsOn(island);
-						lastTaskType[0] = !lastTaskType[0];
-						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-						//	Main.server.getPlayer(island.getOwner()).sendMessage(".Spawned " + spawned + " hostile mobs.");
-						//}
-					}// else {
-						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-						//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
-						//}
-						//}
+					if(island.spawnAnimals) {
+						int spawned = spawnAnimalsOn(island);
+						if(spawned == 0) {
+							spawned = spawnHostileMobsOn(island);
+							lastTaskType[0] = !lastTaskType[0];
+							//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+							//	Main.server.getPlayer(island.getOwner()).sendMessage(".Spawned " + spawned + " hostile mobs.");
+							//}
+						}// else {
+							//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+							//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
+							//}
+							//}
+					}
 				} else {
-					//int spawned = //
-					spawnHostileMobsOn(island);
-					//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-					//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " hostile mobs.");
-					//}
+					if(island.spawnMobs) {
+						//int spawned = //
+						spawnHostileMobsOn(island);
+						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+						//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " hostile mobs.");
+						//}
+					}
 				}
 			}
 			lastTaskType[0] = !lastTaskType[0];
@@ -967,7 +973,8 @@ public final class Island {
 					Enderman.class,//
 					Enderman.class,//
 					Witch.class,//
-					Witch.class};
+					Witch.class,//
+					Blaze.class};
 			ArrayList<Chunk> fullChunks = new ArrayList<>();
 			for(int[] spot : island.getSpawnableBlocksFor(Monster.class)) {
 				Block block = world.getBlockAt(spot[0], spot[1], spot[2]);
@@ -1233,6 +1240,26 @@ public final class Island {
 		if(!canMobSpawnIn(block.getType())) {
 			return false;
 		}
+		if((clazz == Enderman.class || clazz == Endermite.class || clazz == Shulker.class) && block.getBiome() != Biome.SKY) {
+			if(random(Main.random, 0, 9) > 3) {//70% chance of failure
+				return false;
+			}
+		}
+		if(clazz == Blaze.class && block.getBiome() != Biome.HELL) {
+			return false;
+		}
+		Block up = block.getRelative(BlockFace.UP, 1);
+		if(up != null) {
+			if(!canMobSpawnIn(up.getType())) {
+				return false;
+			}
+			if(clazz == Enderman.class) {
+				Block up1 = up.getRelative(BlockFace.UP, 1);
+				if(up1 != null && !canMobSpawnIn(up1.getType())) {
+					return false;
+				}
+			}
+		}
 		Block down = block.getRelative(BlockFace.DOWN, 1);
 		if(down == null || !down.getType().isSolid() || !canMobSpawnOn(down.getType())) {
 			return false;
@@ -1296,6 +1323,8 @@ public final class Island {
 	private volatile double warpZ = Integer.MIN_VALUE;
 	private volatile float warpYaw = 0.0F;
 	private volatile float warpPitch = 0.0F;
+	
+	private volatile boolean spawnMobs = true, spawnAnimals = false;
 	
 	protected final ConcurrentHashMap<String, Location> memberHomes = new ConcurrentHashMap<>();
 	
@@ -1522,6 +1551,8 @@ public final class Island {
 		this.warpY = copy.warpY;
 		this.warpZ = copy.warpZ;
 		this.warpZ = copy.warpZ;
+		this.spawnMobs = copy.spawnMobs;
+		this.spawnAnimals = copy.spawnAnimals;
 		this.memberHomes.clear();
 		this.memberHomes.putAll(copy.memberHomes);
 		this.memberCompletedChallenges.clear();
@@ -1720,6 +1751,8 @@ public final class Island {
 			out.println("warpZ=" + Double.toString(this.warpZ));
 			out.println("warpYaw=" + Float.toString(this.warpYaw));
 			out.println("warpPitch=" + Float.toString(this.warpPitch));
+			out.println("spawnMobs=" + this.spawnMobs);
+			out.println("spawnAnimals=" + this.spawnAnimals);
 			out.println("netherPortalOrientation=" + Integer.toString(this.netherPortalOrientation, 10));
 			out.println("netherPortalX=" + Integer.toString(this.netherPortalX, 10));
 			out.println("netherPortalY=" + Integer.toString(this.netherPortalY, 10));
@@ -2048,6 +2081,10 @@ public final class Island {
 					dupe.warpYaw = Float.parseFloat(value);
 				} else if(pname.equalsIgnoreCase("warpPitch")) {
 					dupe.warpPitch = Float.parseFloat(value);
+				} else if(pname.equalsIgnoreCase("spawnMobs")) {
+					dupe.spawnMobs = value.equalsIgnoreCase("true");
+				} else if(pname.equalsIgnoreCase("spawnAnimals")) {
+					dupe.spawnAnimals = value.equalsIgnoreCase("true");
 				} else if(pname.equalsIgnoreCase("netherPortalOrientation")) {
 					dupe.netherPortalOrientation = Integer.parseInt(value, 10);
 				} else if(pname.equalsIgnoreCase("netherPortalX")) {
@@ -2901,6 +2938,32 @@ public final class Island {
 	 *         members */
 	public final boolean hasReachedMemberCapacity() {
 		return this.members.size() >= this.memberLimit;
+	}
+	
+	/** @return Whether or not this island has hostile mob spawning enabled */
+	public final boolean isMobSpawningEnabled() {
+		return this.spawnMobs;
+	}
+	
+	/** @param spawnMobs Whether or not this island will have hostile mob
+	 *            spawning enabled
+	 * @return This Island */
+	public final Island setMobSpawningEnabled(boolean spawnMobs) {
+		this.spawnMobs = spawnMobs;
+		return this;
+	}
+	
+	/** @return Whether or not this island has animal spawning enabled */
+	public final boolean isAnimalSpawningEnabled() {
+		return this.spawnAnimals;
+	}
+	
+	/** @param spawnAnimals Whether or not this island will have animal spawning
+	 *            enabled
+	 * @return This Island */
+	public final Island setAnimalSpawningEnabled(boolean spawnAnimals) {
+		this.spawnAnimals = spawnAnimals;
+		return this;
 	}
 	
 	/** @param environment The dimension to get the region for
