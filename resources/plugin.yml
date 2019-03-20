@@ -7,6 +7,7 @@ load: POSTWORLD
 loadBefore: [Multiverse-Core, MultiWorld, WorldLoad]
 depend: [EnteisSkyblockGenerator]
 softdepend: [WorldGuard]
+api-version: 1.13
 
 main: com.gmail.br45entei.enteisSkyblock.main.Main
 

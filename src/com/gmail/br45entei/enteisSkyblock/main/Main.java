@@ -10,7 +10,6 @@ import com.gmail.br45entei.enteisSkyblock.vault.VaultHandler;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.SkyworldGenerator.SkyworldBlockPopulator;
-import com.gmail.br45entei.util.CodeUtil;
 import com.gmail.br45entei.util.ResourceUtil;
 
 import java.io.ByteArrayInputStream;
@@ -252,21 +251,21 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	 * @param item The ItemStack whose display name will be returned
 	 * @return The ItemStack's display name */
 	public static final String getI18NDisplayName(ItemStack item) {
-		net.minecraft.server.v1_12_R1.ItemStack nms = null;
-		if(item instanceof org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack) {
+		net.minecraft.server.v1_13_R2.ItemStack nms = null;
+		if(item instanceof org.bukkit.craftbukkit.v1_13_R2.inventory.CraftItemStack) {
 			//nms = ((org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack) item).handle;
 			try {
-				Field _handle = getDeclaredField("handle", org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack.class);
+				Field _handle = getDeclaredField("handle", org.bukkit.craftbukkit.v1_13_R2.inventory.CraftItemStack.class);
 				_handle.setAccessible(true);
-				nms = (net.minecraft.server.v1_12_R1.ItemStack) _handle.get(item);
+				nms = (net.minecraft.server.v1_13_R2.ItemStack) _handle.get(item);
 			} catch(SecurityException | NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
 				return item.hasItemMeta() ? item.getItemMeta().hasDisplayName() ? item.getItemMeta().getDisplayName() : item.getType().name().toLowerCase().replace("_", " ") : item.getType().name().toLowerCase().replace("_", " ");
 			}
 		}
 		if(nms == null) {
-			nms = org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack.asNMSCopy(item);
+			nms = org.bukkit.craftbukkit.v1_13_R2.inventory.CraftItemStack.asNMSCopy(item);
 		}
-		return nms != null ? nms.getName() : null;
+		return nms != null ? nms.getName().getString() : null;
 	}
 	
 	@SuppressWarnings("deprecation")
@@ -359,7 +358,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		//MaterialName:DataValue, Level
 		HashMap<String, Integer> dataValues = new HashMap<>();
 		
-		for(String key : blockValues.getKeys(false)) {
+		/*for(String key : blockValues.getKeys(false)) {
 			String materialID = key;
 			if(key.contains("/")) {
 				String[] split = key.split(Pattern.quote("/"));
@@ -402,7 +401,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				Integer value = Integer.valueOf(blockValues.getInt(key, 0));
 				dataValues.put(material.name() + ":0", value);
 			}
-		}
+		}*/
 		List<String> keySet = new ArrayList<>(dataValues.keySet());
 		//System.out.println("keySet size: " + keySet.size());
 		Collections.sort(keySet, NUMERICAL_CASE_INSENSITIVE_ORDER);
@@ -949,7 +948,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						boolean hasLeaves = false;
 						boolean hasSaplings = false;
 						for(ItemStack item : user.getInventory()) {
-							if(item != null && item.getType() == Material.SAPLING) {
+							if(item != null && item.getType() == Material.OAK_SAPLING) {
 								hasSaplings = true;
 								break;
 							}
@@ -962,9 +961,9 @@ public strictfp class Main extends JavaPlugin implements Listener {
 										int[] xz = Main.getWorldToChunkCoords(x, z);
 										if(GeneratorMain.getSkyworld().isChunkLoaded(xz[0], xz[1])) {
 											Block block = GeneratorMain.getSkyworld().getBlockAt(x, y, z);
-											if(block.getType() == Material.LEAVES || block.getType() == Material.LEAVES_2) {
+											if(block.getType().name().contains("_LEAVES")) {
 												hasLeaves = true;
-											} else if(block.getType() == Material.SAPLING) {
+											} else if(block.getType() == Material.OAK_SAPLING) {
 												hasSaplings = true;
 											}
 										}
@@ -976,7 +975,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(is.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
 								if(entity instanceof Item) {
 									Item item = (Item) entity;
-									if(item.getItemStack() != null && item.getItemStack().getType() == Material.SAPLING) {
+									if(item.getItemStack() != null && item.getItemStack().getType() == Material.OAK_SAPLING) {
 										hasSaplings = true;
 										break;
 									}
@@ -988,10 +987,10 @@ public strictfp class Main extends JavaPlugin implements Listener {
 											if(item == null) {
 												continue;
 											}
-											if(item.getType() == Material.SAPLING) {
+											if(item.getType() == Material.OAK_SAPLING) {
 												hasSaplings = true;
 												break;
-											} else if(item.getType() == Material.LEAVES || item.getType() == Material.LEAVES_2) {
+											} else if(item.getType().name().contains("_LEAVES")) {
 												hasLeaves = true;
 												break;
 											}
@@ -1004,7 +1003,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							}
 						}
 						if(!hasSaplings && !hasLeaves) {
-							GeneratorMain.getSkyworld().dropItem(user.getLocation(), new ItemStack(Material.SAPLING, 1, (short) 0));
+							GeneratorMain.getSkyworld().dropItem(user.getLocation(), new ItemStack(Material.OAK_SAPLING, 1));
 							return;
 						}
 						if(!hasSaplings) {
@@ -1492,7 +1491,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 											setInventoryWithIslandJoinPage(this, inventory);
 											return;
 										}
-										if(clicked != null && clicked.getType() == Material.SKULL_ITEM && clicked.hasItemMeta()) {
+										if(clicked != null && clicked.getType() == Material.LEGACY_SKULL_ITEM && clicked.hasItemMeta()) {
 											SkullMeta meta = (SkullMeta) clicked.getItemMeta();
 											OfflinePlayer chosenOwner = meta.getOwningPlayer();
 											Island chosen = Island.getIslandFor(chosenOwner);
@@ -1579,10 +1578,10 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					gui.setSlot(8, Material.SIGN, this.getStringColor("island.gui-lore.uncreated.join-island.title", ChatColor.GREEN + "Join an Island"), this.getStringList("island.gui-lore.uncreated.join-island.lore", ChatColor.GRAY + "Click to view a list of islands", ChatColor.GRAY + "that you can request to join."));
 				} else {
 					gui.setSlot(0, Material.SIGN, ChatColor.GREEN + "Island information", ChatColor.GRAY + "Click to view information about", ChatColor.GRAY + "your island.");
-					gui.setSlotIcon(1, new ItemStack(Material.BED, 1, (short) 14)).setSlotTitle(1, ChatColor.GREEN + "Island home").setSlotLore(1, ChatColor.GRAY + "Click to teleport to your island's ", ChatColor.GRAY + "home.");
-					gui.setSlot(2, Material.EXP_BOTTLE, ChatColor.GREEN + "Island level", ChatColor.GRAY + "Click to calculate the island's", ChatColor.GRAY + "level.");
+					gui.setSlotIcon(1, new ItemStack(Material.LEGACY_BED, 1, (short) 14)).setSlotTitle(1, ChatColor.GREEN + "Island home").setSlotLore(1, ChatColor.GRAY + "Click to teleport to your island's ", ChatColor.GRAY + "home.");
+					gui.setSlot(2, Material.EXPERIENCE_BOTTLE, ChatColor.GREEN + "Island level", ChatColor.GRAY + "Click to calculate the island's", ChatColor.GRAY + "level.");
 					gui.setSlot(9, Material.GOLD_INGOT, ChatColor.GOLD + "Island Challenges", ChatColor.GRAY + "Click to view the island challenges");
-					gui.setSlot(16, Material.SPRUCE_DOOR_ITEM, ChatColor.RED + "Leave the Island", ChatColor.YELLOW + "Click to leave this island");
+					gui.setSlot(16, Material.LEGACY_SPRUCE_DOOR_ITEM, ChatColor.RED + "Leave the Island", ChatColor.YELLOW + "Click to leave this island");
 					if(island.isOwner(user)) {
 						gui.setSlot(8, Material.NETHER_STAR, ChatColor.GREEN + "Island warp", ChatColor.GRAY + "Click to set the island's warp", ChatColor.GRAY + "location.");
 						gui.setSlot(17, Material.LAVA_BUCKET, ChatColor.DARK_RED + "Delete the Island", ChatColor.YELLOW + "Click to delete this island");
@@ -2329,13 +2328,13 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		
 		ShapelessRecipe mossyCobblestone = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.MOSSY_COBBLESTONE, 1)).addIngredient(1, Material.COBBLESTONE).addIngredient(1, Material.VINE);
 		server.addRecipe(mossyCobblestone);
-		ShapelessRecipe mossyBricks = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.SMOOTH_BRICK, 1, (short) 1)).addIngredient(1, Material.SMOOTH_BRICK).addIngredient(1, Material.VINE);
+		ShapelessRecipe mossyBricks = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.LEGACY_SMOOTH_BRICK, 1, (short) 1)).addIngredient(1, Material.LEGACY_SMOOTH_BRICK).addIngredient(1, Material.VINE);
 		server.addRecipe(mossyBricks);
-		ShapelessRecipe mossyCobbleWall = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.COBBLE_WALL, 1, (short) 1)).addIngredient(1, Material.COBBLE_WALL).addIngredient(1, Material.VINE);
+		ShapelessRecipe mossyCobbleWall = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.COBBLESTONE_WALL, 1, (short) 1)).addIngredient(1, Material.COBBLESTONE_WALL).addIngredient(1, Material.VINE);
 		server.addRecipe(mossyCobbleWall);
 		
 		//This one is not working.
-		ShapelessRecipe melonSlices = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.MELON, 9)).addIngredient(1, Material.MELON_BLOCK);
+		ShapelessRecipe melonSlices = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.MELON, 9)).addIngredient(1, Material.LEGACY_MELON_BLOCK);
 		server.addRecipe(melonSlices);
 		
 		ChallengeCommand.register();
@@ -2515,7 +2514,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		} else if(offHand != null && Enchantment.DURABILITY.canEnchantItem(offHand)) {
 			tool = offHand;
 		}
-		if((tool == null ? block.getType() != Material.WALL_SIGN && block.getType() != Material.SIGN_POST && block.getType() != Material.SIGN : true)) {
+		if((tool == null ? block.getType() != Material.WALL_SIGN && block.getType() != Material.LEGACY_SIGN_POST && block.getType() != Material.SIGN : true)) {
 			Block up = block.getRelative(0, 1, 0);
 			Block down = block.getRelative(0, -1, 0);
 			Block down2 = block.getRelative(0, -2, 0);
@@ -2523,13 +2522,13 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			Block right = block.getRelative(-1, 0, 0);
 			Block front = block.getRelative(0, 0, 1);
 			Block back = block.getRelative(0, 0, -1);
-			if(((up != null && (up.getType() == Material.LAVA || up.getType() == Material.STATIONARY_LAVA)) ||//
-					(down != null && (down.getType() == Material.LAVA || down.getType() == Material.STATIONARY_LAVA)) ||//
-					(left != null && (left.getType() == Material.LAVA || left.getType() == Material.STATIONARY_LAVA)) ||//
-					(right != null && (right.getType() == Material.LAVA || right.getType() == Material.STATIONARY_LAVA)) ||//
-					(front != null && (front.getType() == Material.LAVA || front.getType() == Material.STATIONARY_LAVA)) ||//
-					(back != null && (back.getType() == Material.LAVA || back.getType() == Material.STATIONARY_LAVA))) ||//
-					((down == null || (down.getType() == Material.WALL_SIGN || down.getType() == Material.SIGN_POST || down.getType() == Material.SIGN || !down.getType().isSolid())) && (down2 == null || (down2.getType() == Material.WALL_SIGN || down2.getType() == Material.SIGN_POST || down2.getType() == Material.SIGN || !down2.getType().isSolid())))) {
+			if(((up != null && (up.getType() == Material.LAVA || up.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
+					(down != null && (down.getType() == Material.LAVA || down.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
+					(left != null && (left.getType() == Material.LAVA || left.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
+					(right != null && (right.getType() == Material.LAVA || right.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
+					(front != null && (front.getType() == Material.LAVA || front.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
+					(back != null && (back.getType() == Material.LAVA || back.getType() == Material.LEGACY_STATIONARY_LAVA))) ||//
+					((down == null || (down.getType() == Material.WALL_SIGN || down.getType() == Material.LEGACY_SIGN_POST || down.getType() == Material.SIGN || !down.getType().isSolid())) && (down2 == null || (down2.getType() == Material.WALL_SIGN || down2.getType() == Material.LEGACY_SIGN_POST || down2.getType() == Material.SIGN || !down2.getType().isSolid())))) {
 				
 				Collection<ItemStack> drops = null;
 				if(tool != null) {
@@ -2567,38 +2566,43 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	}
 	
 	public static final boolean isLiquid(Material material) {
-		return material == Material.STATIONARY_WATER || material == Material.STATIONARY_LAVA || material == Material.WATER || material == Material.LAVA;
+		return material == Material.LEGACY_STATIONARY_WATER || material == Material.LEGACY_STATIONARY_LAVA || material == Material.WATER || material == Material.LAVA;
 	}
 	
 	public static final boolean isRedstone(Material material) {
 		switch(material) {
 		case LEVER:
-		case STONE_PLATE:
-		case WOOD_PLATE:
-		case GOLD_PLATE:
-		case IRON_PLATE:
-		case TRAP_DOOR:
+		case STONE_PRESSURE_PLATE:
+		case LEGACY_WOOD_PLATE:
+		case HEAVY_WEIGHTED_PRESSURE_PLATE:
+		case LIGHT_WEIGHTED_PRESSURE_PLATE:
+		case LEGACY_TRAP_DOOR:
 		case IRON_TRAPDOOR:
 		case REDSTONE:
 		case REDSTONE_BLOCK:
-		case REDSTONE_COMPARATOR:
-		case REDSTONE_COMPARATOR_OFF:
-		case REDSTONE_COMPARATOR_ON:
-		case REDSTONE_LAMP_OFF:
-		case REDSTONE_LAMP_ON:
-		case REDSTONE_TORCH_OFF:
-		case REDSTONE_TORCH_ON:
+		case LEGACY_REDSTONE_COMPARATOR:
+		case LEGACY_REDSTONE_COMPARATOR_OFF:
+		case LEGACY_REDSTONE_COMPARATOR_ON:
+		case COMPARATOR:
+		case LEGACY_REDSTONE_LAMP_OFF:
+		case LEGACY_REDSTONE_LAMP_ON:
+		case LEGACY_REDSTONE_TORCH_OFF:
+		case LEGACY_REDSTONE_TORCH_ON:
+		case REDSTONE_TORCH:
 		case REDSTONE_WIRE:
-		case DIODE:
-		case DIODE_BLOCK_OFF:
-		case DIODE_BLOCK_ON:
+		case LEGACY_DIODE:
+		case LEGACY_DIODE_BLOCK_OFF:
+		case LEGACY_DIODE_BLOCK_ON:
 		case DAYLIGHT_DETECTOR:
-		case DAYLIGHT_DETECTOR_INVERTED:
+		case LEGACY_DAYLIGHT_DETECTOR_INVERTED:
 		case STONE_BUTTON:
-		case WOOD_BUTTON:
+		case LEGACY_WOOD_BUTTON:
 			return true;
 		//$CASES-OMITTED$
 		default:
+			if(material.name().contains("_TRAPDOOR")) {
+				return true;
+			}
 			return false;
 		}
 	}
@@ -2642,10 +2646,10 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			event.setCancelled(true);
 			EntityType type = ((CreatureSpawner) state).getSpawnedType();
 			String name = Main.capitalizeFirstLetterOfEachWord(type.name().toLowerCase(), '_', ' ') + " Spawner";
-			ItemStack egg = new ItemStack(Material.MONSTER_EGG, 1);
+			ItemStack egg = new ItemStack(Material.LEGACY_MONSTER_EGG, 1);
 			ItemMeta meta = egg.getItemMeta();
 			if(meta == null) {
-				meta = Main.server.getItemFactory().getItemMeta(Material.MONSTER_EGG);
+				meta = Main.server.getItemFactory().getItemMeta(Material.LEGACY_MONSTER_EGG);
 			}
 			meta.setDisplayName(name);
 			egg.setItemMeta(meta);
@@ -2684,7 +2688,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	 * @return Whether or not the items are of the same type */
 	@SuppressWarnings("deprecation")
 	public static final boolean isSameType(ItemStack item0, ItemStack item1) {
-		return item0.getTypeId() == item1.getTypeId() && (item0.getType().isItem() ? true : item0.getDurability() == item1.getDurability()) && item0.hasItemMeta() == item1.hasItemMeta() && (item0.hasItemMeta() ? Bukkit.getItemFactory().equals(item0.getItemMeta(), item1.getItemMeta()) : true);
+		return item0.getType().getId() == item1.getType().getId() && (item0.getType().isItem() ? true : item0.getDurability() == item1.getDurability()) && item0.hasItemMeta() == item1.hasItemMeta() && (item0.hasItemMeta() ? Bukkit.getItemFactory().equals(item0.getItemMeta(), item1.getItemMeta()) : true);
 	}
 	
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -3159,7 +3163,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			if(portalLocation == null) {
 				portalLocation = new Location(GeneratorMain.getSkyworldNether(), portal.getBlockX(), Math.min(portal.getBlockY(), 115), portal.getBlockZ());//final Location portalLocation = new Location(GeneratorMain.getSkyworldNether(), x, 64, z);
 				Block block = portalLocation.getBlock();
-				if(block.getType() != Material.PORTAL) {
+				if(block.getType() != Material.NETHER_PORTAL) {
 					if(orientation == 0) {
 						portalLocation = createXAxisNetherPortal(portalLocation);
 					} else if(orientation == 1) {
@@ -3268,22 +3272,22 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	 *         one, or <b><code>null</code></b> */
 	public static final Location getNetherPortal(World world, int x, int y, int z) {
 		Block block = world.getBlockAt(x, y, z);
-		if(block != null && block.getType() == Material.PORTAL) {
+		if(block != null && block.getType() == Material.NETHER_PORTAL) {
 			Block obsidian = block.getRelative(0, -1, 0);
 			if(obsidian != null && obsidian.getType() == Material.OBSIDIAN) {
 				boolean portalBlocksPresent = true;
 				for(int i = 1; i < 3; i++) {
 					Block portal = block.getRelative(0, i, 0);
-					portalBlocksPresent &= portal != null && portal.getType() == Material.PORTAL;
+					portalBlocksPresent &= portal != null && portal.getType() == Material.NETHER_PORTAL;
 				}
 				if(portalBlocksPresent) {
 					Location found = new Location(world, x, y, z);
 					Block check = found.getBlock().getRelative(-1, 0, 0);
-					if(check != null && check.getType() == Material.PORTAL) {
+					if(check != null && check.getType() == Material.NETHER_PORTAL) {
 						return check.getLocation();
 					}
 					check = found.getBlock().getRelative(0, 0, -1);
-					if(check != null && check.getType() == Material.PORTAL) {
+					if(check != null && check.getType() == Material.NETHER_PORTAL) {
 						return check.getLocation();
 					}
 					return found;
@@ -3341,7 +3345,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		Block portal = portalLocation.getBlock();
 		Block checkX = portal.getRelative(1, 0, 0);
 		Block checkZ = portal.getRelative(0, 0, 1);
-		return checkX != null && checkX.getType() == Material.PORTAL ? 0 : (checkZ.getType() == Material.PORTAL ? 1 : -1);
+		return checkX != null && checkX.getType() == Material.NETHER_PORTAL ? 0 : (checkZ.getType() == Material.NETHER_PORTAL ? 1 : -1);
 	}
 	
 	/** @param portalLocation The location to create an x-axis aligned nether
@@ -3370,12 +3374,12 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			world.getBlockAt(x + 2, y + 1, z + i).setType(i != 0 ? Material.AIR : Material.OBSIDIAN, false);
 			world.getBlockAt(x + 2, y + 2, z + i).setType(i != 0 ? Material.AIR : Material.OBSIDIAN, false);
 			world.getBlockAt(x + 2, y + 3, z + i).setType(i != 0 ? Material.AIR : Material.OBSIDIAN, false);
-			world.getBlockAt(x, y, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
-			world.getBlockAt(x + 1, y, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
-			world.getBlockAt(x, y + 1, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
-			world.getBlockAt(x + 1, y + 1, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
-			world.getBlockAt(x, y + 2, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
-			world.getBlockAt(x + 1, y + 2, z + i).setType(i != 0 ? Material.AIR : Material.PORTAL, false);
+			world.getBlockAt(x, y, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
+			world.getBlockAt(x + 1, y, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
+			world.getBlockAt(x, y + 1, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
+			world.getBlockAt(x + 1, y + 1, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
+			world.getBlockAt(x, y + 2, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
+			world.getBlockAt(x + 1, y + 2, z + i).setType(i != 0 ? Material.AIR : Material.NETHER_PORTAL, false);
 		}
 		Block check = world.getBlockAt(x, y - 1, z - 1);
 		if(check != null && check.getType() == Material.AIR) {
@@ -3768,7 +3772,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		Player player = event.getPlayer();
 		Island island = Island.getIslandFor(player);
 		if(island != null && island.isPlayerOnIsland(player)) {
-			if(event.getClickedBlock() != null && event.getClickedBlock().getType() == Material.BED_BLOCK) {
+			if(event.getClickedBlock() != null && event.getClickedBlock().getType() == Material.LEGACY_BED_BLOCK) {
 				Location old = player.getBedSpawnLocation();
 				player.setBedSpawnLocation(event.getClickedBlock().getLocation());
 				if(old == null || old.distance(player.getBedSpawnLocation()) > 3) {
@@ -3787,7 +3791,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							for(int y = -2; y < 3; y++) {
 								for(int z = -2; z < 3; z++) {
 									Block check = block.getWorld().getBlockAt(loc.getBlockX() + x, loc.getBlockY() + y, loc.getBlockZ() + z);
-									if(check != null && (check.getType() == Material.WATER || check.getType() == Material.STATIONARY_WATER)) {
+									if(check != null && (check.getType() == Material.WATER || check.getType() == Material.LEGACY_STATIONARY_WATER)) {
 										waterBlocksNearby++;
 									}
 									if(x == 0 && y == 0 && z == 0) {
@@ -3846,7 +3850,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		if(event.getAction() == Action.RIGHT_CLICK_BLOCK && (player.getLocation().getWorld() == GeneratorMain.getSkyworld() ? island != null && island.isPlayerOnIsland(player) : true)) {
 			ItemStack item = event.getItem();
 			if(item != null) {
-				if(item.getType() == Material.MONSTER_EGG) {
+				if(item.getType() == Material.LEGACY_MONSTER_EGG) {
 					if(item.hasItemMeta()) {
 						if(item.getItemMeta().hasDisplayName()) {
 							String name = ChatColor.stripColor(item.getItemMeta().getDisplayName());
@@ -3863,7 +3867,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 								if(!(clicked.getState() instanceof InventoryHolder) || (clicked.getState() instanceof InventoryHolder && player.isSneaking())) {
 									Block target = clicked.getRelative(event.getBlockFace());
 									if(target.getType() == Material.AIR) {
-										target.setType(Material.MOB_SPAWNER, false);
+										target.setType(Material.LEGACY_MOB_SPAWNER, false);
 										CreatureSpawner spawner = (CreatureSpawner) target.getState();
 										spawner.setSpawnedType(type);
 										spawner.setSpawnCount(3);
@@ -3909,7 +3913,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				Location location = block.getLocation();
 				island = Island.getIslandContaining(location);
 				if(island != null && !island.isMember(player)) {
-					if(block.getType() == Material.SOIL) {
+					if(block.getType() == Material.FARMLAND) {
 						event.setUseInteractedBlock(Result.DENY);
 						event.setCancelled(true);
 					}
@@ -3976,7 +3980,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		Location location = block.getLocation();
 		Island island = Island.getIslandContaining(location);
 		if(island != null) {
-			if(block.getType() == Material.SOIL) {
+			if(block.getType() == Material.FARMLAND) {
 				event.setCancelled(true);
 			}
 		}

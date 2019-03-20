@@ -146,12 +146,12 @@ public class UnsafeEnchantCommand extends Command {
 	private static Enchantment getEnchantment(String lookup) {
 		Enchantment enchantment = Enchantment.getByName(lookup);
 		
-		if(enchantment == null) {
+		/*if(enchantment == null) {
 			Integer id = getInteger(lookup);
 			if(id != null) {
 				enchantment = Enchantment.getById(id.intValue());
 			}
-		}
+		}*/
 		
 		return enchantment;
 	}

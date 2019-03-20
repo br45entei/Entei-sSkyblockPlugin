@@ -788,7 +788,7 @@ public final class Island {
 		case GRASS:
 		case GRASS_PATH:
 			return clazz == null ? true : clazz != MushroomCow.class && clazz != Wolf.class;
-		case MYCEL:
+		case MYCELIUM:
 			return clazz == null ? true : clazz == MushroomCow.class;
 		case BONE_BLOCK:
 			return clazz == null ? false : clazz == Wolf.class;
@@ -816,35 +816,40 @@ public final class Island {
 		case TORCH:
 		case SIGN:
 		case WALL_SIGN:
-		case SIGN_POST:
+		case LEGACY_SIGN_POST:
 		case SNOW:
 		case LADDER:
 		case VINE:
-		case WEB:
-		case LONG_GRASS:
-		case YELLOW_FLOWER:
-		case RED_ROSE:
-		case SAPLING:
+		case COBWEB:
+		case TALL_GRASS:
+		case LEGACY_YELLOW_FLOWER:
+		case LEGACY_RED_ROSE:
+		case LEGACY_SAPLING:
 		case BROWN_MUSHROOM:
 		case RED_MUSHROOM:
-		case CARPET:
-		case DIODE_BLOCK_OFF:
-		case DIODE_BLOCK_ON:
+		case LEGACY_CARPET:
+		case LEGACY_DIODE_BLOCK_OFF:
+		case LEGACY_DIODE_BLOCK_ON:
+		case REPEATER:
 		case REDSTONE_WIRE:
-		case REDSTONE_TORCH_OFF:
-		case REDSTONE_TORCH_ON:
+		case LEGACY_REDSTONE_TORCH_OFF:
+		case LEGACY_REDSTONE_TORCH_ON:
+		case REDSTONE_TORCH:
 		case LEVER:
-		case WOOD_PLATE:
-		case STONE_PLATE:
-		case GOLD_PLATE:
-		case IRON_PLATE:
-		case REDSTONE_COMPARATOR_OFF:
-		case REDSTONE_COMPARATOR_ON:
-		case WOOD_BUTTON:
+		case LEGACY_WOOD_PLATE:
+		case STONE_PRESSURE_PLATE:
+		case HEAVY_WEIGHTED_PRESSURE_PLATE:
+		case LIGHT_WEIGHTED_PRESSURE_PLATE:
+		case LEGACY_REDSTONE_COMPARATOR_OFF:
+		case LEGACY_REDSTONE_COMPARATOR_ON:
+		case COMPARATOR:
 		case STONE_BUTTON:
 			return true;
 		//$CASES-OMITTED$
 		default:
+			if(material.name().contains("_CARPET") || material.name().contains("_PRESSURE_PLATE") || material.name().contains("_BUTTON")) {
+				return true;
+			}
 			return false;
 		}
 	}
@@ -1139,10 +1144,10 @@ public final class Island {
 				if(getNearbyEntitiesByType(world, HumanEntity.class, block.getLocation(), 128).size() >= 1 && crammingCheck) {
 					if(block.getLightFromSky() >= 8 || block.getLightFromBlocks() >= 8) {
 						Class<? extends Animals> clazz = classes[Main.random.nextInt(classes.length)];
-						if(clazz != MushroomCow.class && floor.getType() == Material.MYCEL) {
+						if(clazz != MushroomCow.class && floor.getType() == Material.MYCELIUM) {
 							continue;
 						}
-						if(clazz == MushroomCow.class && floor.getBiome() != Biome.MUSHROOM_ISLAND && floor.getBiome() != Biome.MUSHROOM_ISLAND_SHORE) {
+						if(clazz == MushroomCow.class && floor.getBiome() != Biome.MUSHROOM_FIELDS && floor.getBiome() != Biome.MUSHROOM_FIELD_SHORE) {
 							clazz = Cow.class;
 						}
 						if(checkBlockFor(clazz, block)) {
@@ -1182,7 +1187,7 @@ public final class Island {
 						((ChestedHorse) animal).setCarryingChest(true);
 					}
 					if(rand == 137 && horse.getInventory() instanceof HorseInventory) {// 1/256 chance
-						((HorseInventory) horse.getInventory()).setArmor(new ItemStack(Material.DIAMOND_BARDING));
+						((HorseInventory) horse.getInventory()).setArmor(new ItemStack(Material.DIAMOND_HORSE_ARMOR));
 					}
 				}
 			}
@@ -1240,12 +1245,12 @@ public final class Island {
 		if(!canMobSpawnIn(block.getType())) {
 			return false;
 		}
-		if((clazz == Enderman.class || clazz == Endermite.class || clazz == Shulker.class) && block.getBiome() != Biome.SKY) {
+		if((clazz == Enderman.class || clazz == Endermite.class || clazz == Shulker.class) && (block.getBiome() != Biome.THE_END && block.getBiome() != Biome.END_BARRENS && block.getBiome() != Biome.END_HIGHLANDS && block.getBiome() != Biome.END_MIDLANDS && block.getBiome() != Biome.SMALL_END_ISLANDS)) {
 			if(random(Main.random, 0, 9) > 3) {//70% chance of failure
 				return false;
 			}
 		}
-		if(clazz == Blaze.class && block.getBiome() != Biome.HELL) {
+		if(clazz == Blaze.class && block.getBiome() != Biome.NETHER) {
 			return false;
 		}
 		Block up = block.getRelative(BlockFace.UP, 1);
@@ -2702,8 +2707,8 @@ public final class Island {
 			return null;
 		}
 		OfflinePlayer player = Main.server.getOfflinePlayer(this.owner);
-		ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
-		SkullMeta meta = (SkullMeta) Main.server.getItemFactory().getItemMeta(Material.SKULL_ITEM);
+		ItemStack skull = new ItemStack(Material.LEGACY_SKULL_ITEM, 1, (short) 3);
+		SkullMeta meta = (SkullMeta) Main.server.getItemFactory().getItemMeta(Material.LEGACY_SKULL_ITEM);
 		meta.setOwningPlayer(player);
 		if(displayName != null) {
 			meta.setDisplayName(displayName);
@@ -3169,85 +3174,85 @@ public final class Island {
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 3, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z).setType(Material.DIRT, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z).setType(Material.LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 1
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 11, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 11, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 11, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 11, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z - 1).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 2
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z - 1).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 3
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 9, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 2).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 4
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
 		
 		//Dirt Layer 1
 		
@@ -3364,85 +3369,85 @@ public final class Island {
 		world.getBlockAt(X, GeneratorMain.island_Height + 1, Z).setType(Material.DIRT, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.DIRT, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 3, Z).setType(Material.DIRT, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 1
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z - 1).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 2
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 9, Z - 1).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 3
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 2).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 4
 		
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z - 1).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z - 1).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z - 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z + 1).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z + 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 7, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z - 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 7, Z + 2).setType(Material.OAK_LEAVES, false);
 		
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z + 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z - 2).setType(Material.LEAVES, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z - 2).setType(Material.LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z + 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 7, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z - 2).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 7, Z - 2).setType(Material.OAK_LEAVES, false);
 		
 		//Dirt
 		for(int i = 0; i < 4; i++) {
