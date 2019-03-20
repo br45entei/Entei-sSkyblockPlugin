@@ -1825,13 +1825,23 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	
 	@SuppressWarnings("deprecation")
 	public static final void generateChunk(World world, Random random, Chunk chunk) {
-		byte[][] result = SkyworldGenerator._generateBlockSections(world, random, chunk.getX(), chunk.getZ(), null);
+		/*byte[][] result = SkyworldGenerator._generateBlockSections(world, random, chunk.getX(), chunk.getZ(), null);
 		for(int x = 0; x < 16; x++) {
 			for(int y = 0; y < world.getMaxHeight(); y++) {
 				for(int z = 0; z < 16; z++) {
 					final Vector coords = SkyworldGenerator.getWorldCoordsFor(chunk.getX(), chunk.getZ(), x, y, z);
 					if(Island.getIslandContaining(coords.toLocation(world)) == null) {
 						chunk.getBlock(x, y, z).setType(SkyworldGenerator.getMaterial(result, x, y, z), true);
+					}
+				}
+			}
+		}*/
+		for(int x = 0; x < 16; x++) {
+			for(int y = 0; y < world.getMaxHeight(); y++) {
+				for(int z = 0; z < 16; z++) {
+					final Vector coords = SkyworldGenerator.getWorldCoordsFor(chunk.getX(), chunk.getZ(), x, y, z);
+					if(Island.getIslandContaining(coords.toLocation(world)) == null) {
+						chunk.getBlock(x, y, z).setType(SkyworldGenerator.getBlockDataFor(coords, true), true);
 					}
 				}
 			}
