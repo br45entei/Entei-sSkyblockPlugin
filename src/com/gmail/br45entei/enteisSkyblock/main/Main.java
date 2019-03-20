@@ -1569,12 +1569,12 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				//sender.sendMessage(ChatColor.YELLOW + "The Skyblock GUI system has not been implemented yet. Sorry!");
 				if(island == null) {
 					//TODO finish changing these to load from config!
-					gui.setSlot(0, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area."));
-					gui.setSlot(1, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-faraway.title", ChatColor.GREEN + "Create Normal Far Away"), this.getStringList("island.gui-lore.uncreated.normal-faraway.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands."));
-					gui.setSlot(2, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.normal-random.title", ChatColor.GREEN + "Create Normal Random"), this.getStringList("island.gui-lore.uncreated.normal-random.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location."));
-					gui.setSlot(3, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-nearspawn.title", ChatColor.GREEN + "Create Square Near Spawn"), this.getStringList("island.gui-lore.uncreated.square-nearspawn.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area."));
-					gui.setSlot(4, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-faraway.title", ChatColor.GREEN + "Create Square Far Away"), this.getStringList("island.gui-lore.uncreated.square-faraway.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands."));
-					gui.setSlot(5, Material.GRASS, this.getStringColor("island.gui-lore.uncreated.square-random.title", ChatColor.GREEN + "Create Square Random"), this.getStringList("island.gui-lore.uncreated.square-random.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location."));
+					gui.setSlot(0, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area."));
+					gui.setSlot(1, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-faraway.title", ChatColor.GREEN + "Create Normal Far Away"), this.getStringList("island.gui-lore.uncreated.normal-faraway.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands."));
+					gui.setSlot(2, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-random.title", ChatColor.GREEN + "Create Normal Random"), this.getStringList("island.gui-lore.uncreated.normal-random.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location."));
+					gui.setSlot(3, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-nearspawn.title", ChatColor.GREEN + "Create Square Near Spawn"), this.getStringList("island.gui-lore.uncreated.square-nearspawn.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area."));
+					gui.setSlot(4, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-faraway.title", ChatColor.GREEN + "Create Square Far Away"), this.getStringList("island.gui-lore.uncreated.square-faraway.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands."));
+					gui.setSlot(5, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-random.title", ChatColor.GREEN + "Create Square Random"), this.getStringList("island.gui-lore.uncreated.square-random.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location."));
 					gui.setSlot(8, Material.SIGN, this.getStringColor("island.gui-lore.uncreated.join-island.title", ChatColor.GREEN + "Join an Island"), this.getStringList("island.gui-lore.uncreated.join-island.lore", ChatColor.GRAY + "Click to view a list of islands", ChatColor.GRAY + "that you can request to join."));
 				} else {
 					gui.setSlot(0, Material.SIGN, ChatColor.GREEN + "Island information", ChatColor.GRAY + "Click to view information about", ChatColor.GRAY + "your island.");
@@ -2747,7 +2747,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				player.getInventory().setItemInOffHand(replacement);
 			}
 			player.updateInventory();
-			updatePWPInventory(player);
+			//updatePWPInventory(player);
 			return check;
 		}
 		return null;
@@ -2787,7 +2787,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						player.getInventory().setItemInOffHand(swapped);
 					}
 					player.updateInventory();
-					updatePWPInventory(player);
+					//updatePWPInventory(player);
 				});
 			} else {
 				if(hand == EquipmentSlot.HAND) {
@@ -2998,7 +2998,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					player.sendTitle("", ChatColor.GRAY + "You have " + ChatColor.GOLD + Integer.toString(remaining, 10) + ChatColor.GRAY + " of " + title + ChatColor.RESET + ChatColor.GRAY + " remaining.", 10, 70, 20);
 				}
 				player.updateInventory();
-				updatePWPInventory(player);
+				//updatePWPInventory(player);
 			});
 		}
 	}
@@ -3067,7 +3067,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						player.sendTitle("", ChatColor.GRAY + "You have " + ChatColor.GOLD + Integer.toString(remaining, 10) + ChatColor.GRAY + " of " + title + ChatColor.RESET + ChatColor.GRAY + " remaining.", 10, 70, 20);
 					}
 					player.updateInventory();
-					updatePWPInventory(player);
+					//updatePWPInventory(player);
 				}
 			});
 		}
@@ -3897,7 +3897,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 												}
 											}
 											player.updateInventory();
-											updatePWPInventory(player);
+											//updatePWPInventory(player);
 										}
 									}
 								}
@@ -3938,7 +3938,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 	}
 	
-	public static final void updatePWPInventory(Player player) {
+	/*public static final void updatePWPInventory(Player player) {
 		Main.scheduler.runTask(getPlugin(), () -> {
 			updatePWPInventory(player, player.getWorld(), player.getGameMode());
 		});
@@ -3969,7 +3969,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				}
 			}
 		}
-	}
+	}*/
 	
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
 	public static final void onEntityInteractEvent(EntityInteractEvent event) {
@@ -4058,6 +4058,21 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	
 	private static volatile boolean printedWTF = false;
 	
+	public static final Object getRegionManagerFor(World world) {
+		try {
+			//Older way was MUCH simpler >_>
+			//com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
+			//return wg.getRegionManager(world);
+			com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
+			com.sk89q.worldguard.protection.regions.RegionContainer container = com.sk89q.worldguard.WorldGuard.getInstance().getPlatform().getRegionContainer();
+			com.sk89q.worldedit.bukkit.BukkitWorld wrld = new com.sk89q.worldedit.bukkit.BukkitWorld(world);
+			return container.get(wrld);
+		} catch(NoClassDefFoundError ex) {
+			ex.printStackTrace();
+			return null;
+		}
+	}
+	
 	private static final void updateSpawnRegionFor(World world) {
 		if(world.getEnvironment() == Environment.NORMAL) {
 			Island.setBiome(new int[] {-(GeneratorMain.getSpawnRegion() + 1), -(GeneratorMain.getSpawnRegion() + 1), GeneratorMain.getSpawnRegion() + 1, GeneratorMain.getSpawnRegion() + 1}, world, Biome.OCEAN);
@@ -4066,70 +4081,69 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			return;
 		}
 		try {
-			com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
-			com.sk89q.worldguard.protection.managers.RegionManager rm = wg.getRegionManager(world);
+			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) getRegionManagerFor(world);
 			com.sk89q.worldguard.protection.regions.ProtectedRegion global = rm.getRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION);
 			if(global == null) {
-				global = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION, new com.sk89q.worldedit.BlockVector(-29999985, 0, -29999985), new com.sk89q.worldedit.BlockVector(29999984, world.getMaxHeight(), 29999984));
+				global = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION, com.sk89q.worldedit.math.BlockVector3.at(-29999985, 0, -29999985), com.sk89q.worldedit.math.BlockVector3.at(29999984, world.getMaxHeight(), 29999984));
 				rm.addRegion(global);
 			}
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PVP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.USE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
 			global.setPriority(0);
-			com.sk89q.worldguard.protection.regions.ProtectedRegion spawnRegion = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion("spawn", new com.sk89q.worldedit.BlockVector(-(GeneratorMain.getSpawnRegion() + 1), 0, -(GeneratorMain.getSpawnRegion() + 1)), new com.sk89q.worldedit.BlockVector(GeneratorMain.getSpawnRegion(), world.getMaxHeight(), GeneratorMain.getSpawnRegion()));
+			com.sk89q.worldguard.protection.regions.ProtectedRegion spawnRegion = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion("spawn", com.sk89q.worldedit.math.BlockVector3.at(-(GeneratorMain.getSpawnRegion() + 1), 0, -(GeneratorMain.getSpawnRegion() + 1)), com.sk89q.worldedit.math.BlockVector3.at(GeneratorMain.getSpawnRegion(), world.getMaxHeight(), GeneratorMain.getSpawnRegion()));
 			rm.removeRegion("spawn");
-			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.GREET_MESSAGE, "&5You have entered the spawn area.");
-			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FAREWELL_MESSAGE, "&5You have left the spawn area.");
+			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.GREET_MESSAGE, "&5You have entered the spawn area.");
+			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.FAREWELL_MESSAGE, "&5You have left the spawn area.");
 			spawnRegion.setPriority(1);
 			rm.addRegion(spawnRegion);
 			try {
@@ -4137,8 +4151,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			} catch(com.sk89q.worldguard.protection.regions.ProtectedRegion.CircularInheritanceException e) {
 				throw new RuntimeException(e);
 			}
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
 		} catch(NullPointerException wtf) {
 			Main.getPlugin().getLogger().warning("Unable to update WorldGuard spawn region for world " + world.getName());
 			if(!printedWTF) {

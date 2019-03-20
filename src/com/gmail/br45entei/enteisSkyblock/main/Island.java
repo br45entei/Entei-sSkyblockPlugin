@@ -2975,8 +2975,7 @@ public final class Island {
 	 * @return This Island's WorldGuard region, if one has been created
 	 *         with {@link #update()} beforehand */
 	public final com.sk89q.worldguard.protection.regions.ProtectedRegion getRegion(Environment environment) {
-		com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
-		com.sk89q.worldguard.protection.managers.RegionManager rm = wg.getRegionManager(environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
+		com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
 		return rm.getRegion(this.getID());
 	}
 	
@@ -3029,8 +3028,7 @@ public final class Island {
 		com.sk89q.worldguard.protection.regions.ProtectedRegion region = this.getRegion(environment);
 		World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
 		if(region != null) {
-			com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
-			com.sk89q.worldguard.protection.managers.RegionManager rm = wg.getRegionManager(world);
+			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
 			rm.removeRegion(region.getId());
 		}
 		return this;
@@ -3043,15 +3041,14 @@ public final class Island {
 		com.sk89q.worldguard.protection.regions.ProtectedRegion region = this.getRegion(environment);
 		World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
 		if(region == null) {
-			com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
-			com.sk89q.worldguard.protection.managers.RegionManager rm = wg.getRegionManager(world);
+			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
 			int[] bounds = this.getBounds();
 			int minX = bounds[0];
 			int minZ = bounds[1];
 			int maxX = bounds[2];
 			int maxZ = bounds[3];
-			com.sk89q.worldedit.BlockVector min = new com.sk89q.worldedit.BlockVector(minX, 0, minZ);
-			com.sk89q.worldedit.BlockVector max = new com.sk89q.worldedit.BlockVector(maxX, world.getMaxHeight(), maxZ);
+			com.sk89q.worldedit.math.BlockVector3 min = com.sk89q.worldedit.math.BlockVector3.at(minX, 0, minZ);
+			com.sk89q.worldedit.math.BlockVector3 max = com.sk89q.worldedit.math.BlockVector3.at(maxX, world.getMaxHeight(), maxZ);
 			region = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(this.getID(), min, max);
 			rm.addRegion(region);
 		}
@@ -3066,58 +3063,58 @@ public final class Island {
 		//region.setFlag(DefaultFlag.GREET_MESSAGE, "&aYou are entering &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
 		//region.setFlag(DefaultFlag.FAREWELL_MESSAGE, "&aYou are leaving &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
 		
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);//(Blocked via event handler in Main class)
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ENTRY, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_DROP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.ITEM_PICKUP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.PVP, this.pvpEnabled ? (this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW) : com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.USE, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.DefaultFlag.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);//(Blocked via event handler in Main class)
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, this.pvpEnabled ? (this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW) : com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
 		
 		region.setPriority(100);
 		return this;
@@ -3174,12 +3171,12 @@ public final class Island {
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 3, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z).setType(Material.DIRT, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LOG, true);
 		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 1
@@ -3233,7 +3230,7 @@ public final class Island {
 		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LEAVES, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);//This one seems to not get set...
 		world.getBlockAt(X + 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
 		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z + 1).setType(Material.OAK_LEAVES, false);
 		world.getBlockAt(X - 1, GeneratorMain.island_Height + 8, Z - 1).setType(Material.OAK_LEAVES, false);
@@ -3305,42 +3302,42 @@ public final class Island {
 		
 		//Grass Layer 1
 		
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS, false);
-		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS, false);
-		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS, false);
-		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS, false);
-		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS, false);
-		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS, false);
-		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS, false);
-		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 2, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z + 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 2, GeneratorMain.island_Height + 4, Z - 2).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 3, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z - 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 3, GeneratorMain.island_Height + 4, Z + 1).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z + 3).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X - 1, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS_BLOCK, false);
+		world.getBlockAt(X + 1, GeneratorMain.island_Height + 4, Z - 3).setType(Material.GRASS_BLOCK, false);
 		
 		//Chest 1
 		
@@ -3451,28 +3448,28 @@ public final class Island {
 		
 		//Dirt
 		for(int i = 0; i < 4; i++) {
-			world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z + 1).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
+			world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z + 1).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
 			world.getBlockAt(X - 1, GeneratorMain.island_Height + i, Z + 1).setType(Material.DIRT, false);
 			/**/world.getBlockAt(X, GeneratorMain.island_Height + i, Z + 1).setType(Material.DIRT, false);
 			world.getBlockAt(X + 1, GeneratorMain.island_Height + i, Z + 1).setType(Material.DIRT, false);
-			world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z + 1).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
+			world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z + 1).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
 		}
 		for(int i = 0; i < 4; i++) {
-			world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-			world.getBlockAt(X - 1, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-			//world.getBlockAt(X, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-			world.getBlockAt(X + 1, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-			world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
+			world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+			world.getBlockAt(X - 1, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+			//world.getBlockAt(X, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+			world.getBlockAt(X + 1, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+			world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
 		}
 		for(int i = 0; i < 4; i++) {
 			for(int j = 1; j < 3; j++) {
-				world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-				world.getBlockAt(X - 1, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
+				world.getBlockAt(X - 2, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+				world.getBlockAt(X - 1, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
 				if(i < 3) {
-					world.getBlockAt(X, GeneratorMain.island_Height + i, Z - j).setType(i == 2 ? Material.GRASS : Material.DIRT, false);
+					world.getBlockAt(X, GeneratorMain.island_Height + i, Z - j).setType(i == 2 ? Material.GRASS_BLOCK : Material.DIRT, false);
 				}
-				world.getBlockAt(X + 1, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
-				world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS : Material.DIRT, false);
+				world.getBlockAt(X + 1, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
+				world.getBlockAt(X + 2, GeneratorMain.island_Height + i, Z - j).setType(i == 3 ? Material.GRASS_BLOCK : Material.DIRT, false);
 			}
 		}
 		
@@ -3509,7 +3506,7 @@ public final class Island {
 		inv.setItem(2, new ItemStack(Material.RED_MUSHROOM, 1));
 		inv.setItem(3, new ItemStack(Material.BROWN_MUSHROOM, 1));
 		inv.setItem(4, new ItemStack(Material.SUGAR_CANE, 1));
-		inv.setItem(5, new ItemStack(Material.MELON, 1));
+		inv.setItem(5, new ItemStack(Material.MELON_SLICE, 1));
 		inv.setItem(6, new ItemStack(Material.PUMPKIN_SEEDS, 1));
 		inv.setItem(7, new ItemStack(Material.CACTUS, 1));
 		inv.setItem(8, new ItemStack(Material.BEETROOT_SEEDS, 1));
