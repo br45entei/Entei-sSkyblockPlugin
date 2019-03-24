@@ -1033,7 +1033,9 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							}
 						}
 						if(!hasSaplings && !hasLeaves) {
-							GeneratorMain.getSkyworld().dropItem(user.getLocation(), new ItemStack(Material.OAK_SAPLING, 1));
+							Main.scheduler.runTask(getPlugin(), () -> {
+								GeneratorMain.getSkyworld().dropItem(user.getLocation(), new ItemStack(Material.OAK_SAPLING, 1));
+							});
 							return;
 						}
 						if(!hasSaplings) {
@@ -3354,7 +3356,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				if(closestMember != null) {
 					event.setCancelled(true);
 					ItemStack recovered = new ItemStack(item.getItemStack());
-					item.setItemStack(new ItemStack(Material.AIR));
+					//item.setItemStack(new ItemStack(Material.AIR)); //Throws "java.lang.IllegalArgumentException: Cannot drop air" as of 1.13+
 					item.teleport(new Location(item.getWorld(), 0, -64, 0));
 					item.remove();
 					HashMap<Integer, ItemStack> leftovers = closestMember.getInventory().addItem(recovered);
