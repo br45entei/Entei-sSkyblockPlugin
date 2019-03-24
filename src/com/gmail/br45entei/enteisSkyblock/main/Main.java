@@ -3770,16 +3770,31 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			Player player = (Player) event.getDamager();
 			Location location = event.getEntity().getLocation();
 			Island island = Island.getIslandContaining(location);
-			if(location.getWorld() == GeneratorMain.getSkyworld() && island != null && !island.isMember(player)) {
+			if(location.getWorld() == GeneratorMain.getSkyworld() && island != null && !island.isTrusted(player)) {
 				event.setCancelled(true);
+				if(island.isLocked() && (event.getEntity() instanceof Monster)) {//(Allows players to attack hostile mobs on unlocked islands)
+					event.setCancelled(false);
+				}
 			}
-		} else if(event.getDamager() instanceof Arrow && event.getEntity() instanceof Creeper) {
+		} else if(event.getDamager() instanceof Arrow) {
 			Arrow arrow = (Arrow) event.getDamager();
-			Creeper creeper = (Creeper) event.getEntity();
-			if(arrow.getShooter() instanceof Skeleton) {
+			if(event.getEntity() instanceof Creeper && arrow.getShooter() instanceof Skeleton) {//XXX Hack to make music discs slightly easier to obtain
+				Creeper creeper = (Creeper) event.getEntity();
 				Skeleton skeleton = (Skeleton) arrow.getShooter();
 				skeleton.setTarget(creeper);
-				creeper.setTarget(null);//creeper.setTarget(creeper); XDDDD
+				creeper.setTarget(null);//creeper.setTarget(creeper); XDDDD (it blows itself up lmaoooo)
+			} else {
+				if(arrow.getShooter() instanceof Player) {
+					Player player = (Player) arrow.getShooter();
+					Location location = event.getEntity().getLocation();
+					Island island = Island.getIslandContaining(location);
+					if(location.getWorld() == GeneratorMain.getSkyworld() && island != null && !island.isTrusted(player)) {
+						event.setCancelled(true);
+						if(island.isLocked() && (event.getEntity() instanceof Monster)) {//(Allows players to attack hostile mobs on unlocked islands)
+							event.setCancelled(false);
+						}
+					}
+				}
 			}
 		}
 	}
