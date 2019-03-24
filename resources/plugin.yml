@@ -5,8 +5,8 @@ authors: [Brian_Entei]
 description: Basic skyblock support
 load: POSTWORLD
 loadBefore: [Multiverse-Core, MultiWorld, WorldLoad]
-depend: [EnteisSkyblockGenerator]
-softdepend: [WorldGuard]
+depend: [EnteisSkyblockGenerator, WorldEdit, WorldGuard, Vault]
+softdepend: []
 api-version: 1.13
 
 main: com.gmail.br45entei.enteisSkyblock.main.Main
@@ -16,10 +16,10 @@ commands:
     description: "The main island command"
     usage: "Type /is help to view usages."
     aliases: [is, iw, ih, hi, ig]
-  spawn:
-    description: "Teleport yourself to the server spawn"
-    usage: "/spawn"
-    aliases: []
+#  spawn:
+#    description: "Teleport yourself to the server spawn"
+#    usage: "/spawn"
+#    aliases: []
   skyworld:
     description: "Teleport yourself to the skyworld"
     usage: "/skyworld"
@@ -28,20 +28,20 @@ commands:
     description: "View or complete Island challenges"
     usage: "/challenge complete {challengeName}"
     aliases: [c, cc]
-  test:
+  testIsland:
     description: "Generate a test island nearest your location"
     usage: "/test"
     aliases: []
-  delete:
-    description: "Delete the island nearest your location, if it exists"
-    usage: "/delete"
-    aliases: []
-  chest:
-    description: "Access an extra storage chest anywhere in the skyworld"
-    usage: "/chest"
-    aliases: []
-  unsafeEnchant:
-    description: "Add unsafe enchantments onto any item"
-    usage: "/enchant <player> <enchantment ID> [level] [force]"
-    aliases: [ue]
+#  delete:
+#    description: "Delete the island nearest your location, if it exists"
+#    usage: "/delete"
+#    aliases: []
+#  chest:
+#    description: "Access an extra storage chest anywhere in the skyworld"
+#    usage: "/chest"
+#    aliases: []
+#  unsafeEnchant:
+#    description: "Add unsafe enchantments onto any item"
+#    usage: "/enchant <player> <enchantment ID> [level] [force]"
+#    aliases: [ue]
   

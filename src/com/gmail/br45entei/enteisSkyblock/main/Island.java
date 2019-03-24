@@ -2,6 +2,7 @@ package com.gmail.br45entei.enteisSkyblock.main;
 
 import com.gmail.br45entei.enteisSkyblock.challenge.Challenge;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
+import com.gmail.br45entei.enteisSkyblockGenerator.worldedit.WorldEditUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -33,6 +34,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.attribute.Attribute;
@@ -91,6 +93,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
@@ -148,6 +151,9 @@ public final class Island {
 	//@SuppressWarnings("deprecation")
 	protected static final void startSpawnTask() {
 		stopSpawnTask();
+		if("".equals("")) {//XXX Disabled mob spawning
+			return;
+		}
 		state[0] = true;
 		final boolean[] lastTaskType = new boolean[1];
 		spawnTID = Main.scheduler.runTaskTimer(Main.plugin, () -> {
@@ -404,8 +410,8 @@ public final class Island {
 	
 	protected static final int[] getNextAvailableIslandIDNearSpawn() {
 		int x = 0;
-		int z = 2;
-		int lastZ = 2;
+		int z = GeneratorMain.getSpawnOffset();//2;
+		int lastZ = z;
 		int dir = 0;//0=right,1=down,2=left,3=up,4=right_check_x_equals_0
 		while(true) {
 			boolean exists = getIfExists(x, z) != null;
@@ -1596,7 +1602,7 @@ public final class Island {
 		}
 		this.x = x;
 		this.z = z;
-		this.biome = Biome.FOREST;
+		this.biome = Biome.OCEAN;
 		islands.add(this);
 	}
 	
@@ -2109,6 +2115,15 @@ public final class Island {
 		}
 		this.copy(dupe);
 		return true;
+	}
+	
+	@Deprecated
+	public final void setType(String type) {
+		this.islandType = type;
+	}
+	
+	public final String getType() {
+		return this.islandType;
 	}
 	
 	/** Sends a message to all of this Island's members
@@ -2707,8 +2722,8 @@ public final class Island {
 			return null;
 		}
 		OfflinePlayer player = Main.server.getOfflinePlayer(this.owner);
-		ItemStack skull = new ItemStack(Material.LEGACY_SKULL_ITEM, 1, (short) 3);
-		SkullMeta meta = (SkullMeta) Main.server.getItemFactory().getItemMeta(Material.LEGACY_SKULL_ITEM);
+		ItemStack skull = new ItemStack(Material.PLAYER_HEAD, 1);
+		SkullMeta meta = (SkullMeta) Main.server.getItemFactory().getItemMeta(Material.PLAYER_HEAD);
 		meta.setOwningPlayer(player);
 		if(displayName != null) {
 			meta.setDisplayName(displayName);
@@ -2804,12 +2819,12 @@ public final class Island {
 			if(check.getX() < 0) {
 				x = Math.abs(check.getX()) - 1;
 			} else {
-				x = check.getX() - 1;
+				x = check.getX();
 			}
 			if(check.getZ() < 0) {
 				z = Math.abs(check.getZ()) - 1;
 			} else {
-				z = check.getZ() - 1;
+				z = check.getZ();
 			}
 			return x <= GeneratorMain.getSpawnRegion() && z <= GeneratorMain.getSpawnRegion();
 		}
@@ -2974,32 +2989,65 @@ public final class Island {
 	/** @param environment The dimension to get the region for
 	 * @return This Island's WorldGuard region, if one has been created
 	 *         with {@link #update()} beforehand */
-	public final com.sk89q.worldguard.protection.regions.ProtectedRegion getRegion(Environment environment) {
-		com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
-		return rm.getRegion(this.getID());
+	public final Object getRegion(Environment environment) {
+		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Unable to obtain region information for island (".concat(this.getID()).concat(")..."));
+			return null;
+		}
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Unable to obtain region information for island (".concat(this.getID()).concat(")..."));
+			return null;
+		}
+		return this._getRegion(environment);
+	}
+	
+	private final Object _getRegion(Environment environment) {
+		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Unable to obtain region information for island (".concat(this.getID()).concat(")..."));
+			return null;
+		}
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Unable to obtain region information for island (".concat(this.getID()).concat(")..."));
+			return null;
+		}
+		try {
+			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
+			return rm.getRegion(this.getID());
+		} catch(NoClassDefFoundError ex) {
+			ex.printStackTrace(System.err);
+			System.err.flush();
+			return null;
+		}
 	}
 	
 	/** @return This Island's bounds.
 	 *         <b>{@code [minX, minZ, maxX, maxZ]}</b> */
 	public final int[] getBounds() {
-		int x = this.x * GeneratorMain.island_Range;
-		int z = this.z * GeneratorMain.island_Range;
-		int minX = x - ((GeneratorMain.island_Range / 2) - 2);
-		int minZ = z - ((GeneratorMain.island_Range / 2) - 2);
-		int maxX = x + ((GeneratorMain.island_Range / 2) - 4);
-		int maxZ = z + ((GeneratorMain.island_Range / 2) - 4);
-		if(minX < 0) {
-			minX++;
+		if(GeneratorMain.enableIslandBorders) {
+			final int range = GeneratorMain.island_Range;
+			final int border = GeneratorMain.islandBorderSize;
+			int x = this.x * range;
+			int z = this.z * range;
+			int minX = (x - (range / 2)) + 2 + (x <= 0 ? (border / 2) : 0);//(range / 2) - 2);
+			int minZ = (z - (range / 2)) + 2 + (z <= 0 ? (border / 2) : 0);//(range / 2) - 2
+			int maxX = x + ((range / 2) - (border - 1));//(range / 2) - 4
+			int maxZ = z + ((range / 2) - (border - 1));//(range / 2) - 4
+			return new int[] {minX, minZ, maxX, maxZ};
 		}
-		if(minZ < 0) {
-			minZ++;
-		}
-		if(maxX < 0) {
-			maxX++;
-		}
-		if(maxZ < 0) {
-			maxZ++;
-		}
+		//Negative/positive insensitive code! Yay, finally -_-
+		final int range = GeneratorMain.island_Range;
+		final int border = GeneratorMain.islandBorderSize;
+		int x = this.x * range;
+		int z = this.z * range;
+		
+		int diameter = range - border;
+		int radius = diameter / 2;
+		radius += radius % 2 == 0 ? 0 : 1;
+		
+		int minX = x - radius;
+		int minZ = z - radius;
+		int maxX = x + radius;
+		int maxZ = z + radius;
 		return new int[] {minX, minZ, maxX, maxZ};
 	}
 	
@@ -3023,100 +3071,148 @@ public final class Island {
 	
 	private final Island deleteRegion(Environment environment) {
 		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Not deleting region for island (".concat(this.getID()).concat(")..."));
 			return this;
 		}
-		com.sk89q.worldguard.protection.regions.ProtectedRegion region = this.getRegion(environment);
-		World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
-		if(region != null) {
-			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
-			rm.removeRegion(region.getId());
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Not deleting region for island (".concat(this.getID()).concat(")..."));
+			return this;
+		}
+		return this._deleteRegion(environment);
+	}
+	
+	private final Island _deleteRegion(Environment environment) {
+		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Not deleting region for island (".concat(this.getID()).concat(")..."));
+			return this;
+		}
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Not deleting region for island (".concat(this.getID()).concat(")..."));
+			return this;
+		}
+		try {
+			com.sk89q.worldguard.protection.regions.ProtectedRegion region = (com.sk89q.worldguard.protection.regions.ProtectedRegion) this.getRegion(environment);
+			World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
+			if(region != null) {
+				com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
+				rm.removeRegion(region.getId());
+			}
+		} catch(NoClassDefFoundError ex) {
+			ex.printStackTrace(System.err);
+			System.err.flush();
 		}
 		return this;
 	}
 	
 	private final Island updateRegion(Environment environment) {
 		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Not updating region for island (".concat(this.getID()).concat(")..."));
 			return this;
 		}
-		com.sk89q.worldguard.protection.regions.ProtectedRegion region = this.getRegion(environment);
-		World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
-		if(region == null) {
-			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
-			int[] bounds = this.getBounds();
-			int minX = bounds[0];
-			int minZ = bounds[1];
-			int maxX = bounds[2];
-			int maxZ = bounds[3];
-			com.sk89q.worldedit.math.BlockVector3 min = com.sk89q.worldedit.math.BlockVector3.at(minX, 0, minZ);
-			com.sk89q.worldedit.math.BlockVector3 max = com.sk89q.worldedit.math.BlockVector3.at(maxX, world.getMaxHeight(), maxZ);
-			region = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(this.getID(), min, max);
-			rm.addRegion(region);
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Not updating region for island (".concat(this.getID()).concat(")..."));
+			return this;
 		}
-		com.sk89q.worldguard.domains.DefaultDomain members = new com.sk89q.worldguard.domains.DefaultDomain();
-		for(UUID member : this.getMembers()) {
-			members.addPlayer(member);
+		return this._updateRegion(environment);
+	}
+	
+	private final Island _updateRegion(Environment environment) {
+		if(Main.getWorldGuard() == null) {
+			Main.getPlugin().getLogger().warning("WorldGuard not detected! Not updating region for island (".concat(this.getID()).concat(")..."));
+			return this;
 		}
-		for(UUID trusted : this.trustedPlayers) {
-			members.addPlayer(trusted);
+		if(Main.getWorldEdit() == null) {
+			Main.getPlugin().getLogger().warning("WorldEdit not detected! Not updating region for island (".concat(this.getID()).concat(")..."));
+			return this;
 		}
-		region.setMembers(members);
-		//region.setFlag(DefaultFlag.GREET_MESSAGE, "&aYou are entering &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
-		//region.setFlag(DefaultFlag.FAREWELL_MESSAGE, "&aYou are leaving &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
-		
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);//(Blocked via event handler in Main class)
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, this.pvpEnabled ? (this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW) : com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		
-		region.setPriority(100);
+		try {
+			com.sk89q.worldguard.protection.regions.ProtectedRegion region = (com.sk89q.worldguard.protection.regions.ProtectedRegion) this.getRegion(environment);
+			World world = environment == Environment.NORMAL ? GeneratorMain.getSkyworld() : (environment == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
+			if(region == null) {
+				com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) Main.getRegionManagerFor(world);
+				if(rm == null) {
+					Main.getPlugin().getLogger().warning("WorldGuard region manager is null! Not updating region for island (".concat(this.getID()).concat(")..."));
+					return this;
+				}
+				int[] bounds = this.getBounds();
+				int minX = bounds[0];
+				int minZ = bounds[1];
+				int maxX = bounds[2];
+				int maxZ = bounds[3];
+				com.sk89q.worldedit.math.BlockVector3 min = com.sk89q.worldedit.math.BlockVector3.at(minX, 0, minZ);
+				com.sk89q.worldedit.math.BlockVector3 max = com.sk89q.worldedit.math.BlockVector3.at(maxX, world.getMaxHeight(), maxZ);
+				region = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(this.getID(), min, max);
+				rm.addRegion(region);
+			}
+			com.sk89q.worldguard.domains.DefaultDomain members = new com.sk89q.worldguard.domains.DefaultDomain();
+			for(UUID member : this.getMembers()) {
+				members.addPlayer(member);
+			}
+			for(UUID trusted : this.trustedPlayers) {
+				members.addPlayer(trusted);
+			}
+			region.setMembers(members);
+			//region.setFlag(DefaultFlag.GREET_MESSAGE, "&aYou are entering &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
+			//region.setFlag(DefaultFlag.FAREWELL_MESSAGE, "&aYou are leaving &f" + this.ownerName + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + ".");
+			
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);//(Blocked via event handler in Main class)
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, this.pvpEnabled ? (this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW) : com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, this.isLocked ? com.sk89q.worldguard.protection.flags.StateFlag.State.DENY : com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			region.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			
+			region.setPriority(100);
+		} catch(NoClassDefFoundError ex) {
+			ex.printStackTrace(System.err);
+			System.err.flush();
+		}
 		return this;
 	}
 	
@@ -3154,10 +3250,90 @@ public final class Island {
 	}
 	
 	/** Deletes all of the blocks contained within this Island, then
+	 * generates a new one from the configured schematic.
+	 * 
+	 * @return This Island */
+	public final Island generateSchematicIsland() {
+		return this.generateSchematicIsland(true, false);
+	}
+	
+	public final Island generateSchematicIsland(boolean deleteBlocks, boolean restoreBiome) {
+		if(this.isWithinSpawnArea()) {
+			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
+		}
+		this.islandType = "schematic";
+		World world = GeneratorMain.getSkyworld();
+		//int X = this.x * GeneratorMain.island_Range;
+		//int Z = this.z * GeneratorMain.island_Range;
+		this.deleteBlocks(false);
+		Plugin check = Main.getWorldEdit();
+		if(check != null) {
+			File schem = new File(GeneratorMain.getSchematicsFolder(), GeneratorMain.island_schematic);
+			if(!schem.exists() && !GeneratorMain.island_schematic.endsWith(".schematic") && !GeneratorMain.island_schematic.endsWith(".schem")) {
+				schem = new File(GeneratorMain.getSchematicsFolder(), GeneratorMain.island_schematic.concat(".schem"));
+			}
+			if(!schem.exists() && !GeneratorMain.island_schematic.endsWith(".schematic") && !GeneratorMain.island_schematic.endsWith(".schem")) {
+				schem = new File(GeneratorMain.getSchematicsFolder(), GeneratorMain.island_schematic.concat(".schematic"));
+			}
+			if(schem.exists()) {
+				if(WorldEditUtils.pasteSchematicFromFile(world, schem, this.getLocation().toVector())) {
+					if(GeneratorMain.overwrite_schematic_chest_items) {
+						Location location = this.getLocation().add(GeneratorMain.schematic_chest_offsetX, GeneratorMain.schematic_chest_offsetY, GeneratorMain.schematic_chest_offsetZ);
+						Block block = location.getBlock();
+						if(block != null && block.getState() instanceof Chest) {
+							Chest chest = (Chest) block.getState();
+							chest.getInventory().clear();
+							chest.update(true, true);
+							setChestContents(chest.getBlockInventory());
+							setChestContents(chest.getInventory());
+						} else {
+							Main.plugin.getLogger().warning("\n"//
+									.concat(" /!\\  Failed to locate the starting chest for schematic island at (").concat(this.getLocation().toVector().toString()).concat(")!\n")//
+									.concat("/___\\ The island probably won't have any starting items!"));
+							Main.server.broadcast(ChatColor.RED + "[Entei's Skyblock] Failed to locate the starting chest for schematic island at (".concat(this.getLocation().toVector().toString()).concat(")!"), Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
+							Main.server.broadcast(ChatColor.RED + "[Entei's Skyblock] The newly generated island won't have any starting items!", Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
+							Main.server.broadcast(ChatColor.GREEN + "[Entei's Skyblock] You have permission to remedy this issue. Please teleport to the island using \"/iw ".concat(this.getOwnerNamePlain()).concat("\" and then locate and look at the starting chest, and then type \"/dev regenChest\"."), "skyblock.admin");
+							if(Main.server.getOfflinePlayer(this.getOwner()).isOnline()) {
+								Main.server.getPlayer(this.getOwner()).sendMessage(ChatColor.YELLOW + "[Entei's Skyblock] Failed to generate the starting chest items. Please contact a staff member for assistence if they have not contacted you within 5 minutes.");
+							}
+						}
+					}
+					return this;
+				}
+			} else {
+				if(GeneratorMain.island_schematic.equals("none")) {
+					Main.plugin.getLogger().warning("\n"//
+							.concat(" /!\\  A schematic island was supposed to generate,\n")//
+							.concat("/___\\ but no schematic has been set!"));
+				} else {
+					Main.plugin.getLogger().warning("\n"//
+							.concat(" /!\\  A schematic island was supposed to generate,\n")//
+							.concat("/___\\ but the schematic \"").concat(GeneratorMain.island_schematic).concat("\" does not exist!"));
+				}
+			}
+		} else {
+			Main.plugin.getLogger().warning("\n"//
+					.concat(" /!\\  Failed to find an instance of WorldEdit!\n")//
+					.concat("/___\\ Unable to use schematics!"));
+		}
+		Main.plugin.getLogger().warning("\n"//
+				.concat(" /!\\  Failed to generate island from schematic \"").concat(GeneratorMain.island_schematic).concat("\" at (").concat(this.getLocation().toVector().toString()).concat(")!\n")//
+				.concat("/___\\ Using default hard-coded normal island instead..."));
+		if(!GeneratorMain.enableIslandBorders) {
+			Main.plugin.getLogger().warning("       Island bridge generation is turned off. Since the schematic failed to paste, the above island may not have any bridges if the schematic is supposed to contain them.");
+		}
+		return this.generateIsland();
+	}
+	
+	/** Deletes all of the blocks contained within this Island, then
 	 * generates a blank new one.
 	 * 
 	 * @return This Island */
 	public final Island generateIsland() {
+		return this.generateIsland(true, false);
+	}
+	
+	public final Island generateIsland(boolean deleteBlocks, boolean restoreBiome) {
 		if(this.isWithinSpawnArea()) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
@@ -3165,7 +3341,9 @@ public final class Island {
 		World world = GeneratorMain.getSkyworld();
 		int X = this.x * GeneratorMain.island_Range;
 		int Z = this.z * GeneratorMain.island_Range;
-		this.deleteBlocks(false);
+		if(deleteBlocks) {
+			this.deleteBlocks(restoreBiome);
+		}
 		world.getBlockAt(X, GeneratorMain.island_Height, Z).setType(Material.OBSIDIAN, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 1, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.SAND, false);
@@ -3350,6 +3528,10 @@ public final class Island {
 	 * 
 	 * @return This Island */
 	public final Island generateSquareIsland() {
+		return this.generateSquareIsland(true, false);
+	}
+	
+	public final Island generateSquareIsland(boolean deleteBlocks, boolean restoreBiome) {
 		if(this.isWithinSpawnArea()) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
@@ -3361,7 +3543,9 @@ public final class Island {
 		
 		int X = this.x * GeneratorMain.island_Range;
 		int Z = this.z * GeneratorMain.island_Range;
-		this.deleteBlocks(false);
+		if(deleteBlocks) {
+			this.deleteBlocks(restoreBiome);
+		}
 		world.getBlockAt(X, GeneratorMain.island_Height, Z).setType(Material.OBSIDIAN, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 1, Z).setType(Material.DIRT, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.DIRT, false);
@@ -3500,13 +3684,20 @@ public final class Island {
 	public static final void generateChestAt(Location location) {
 		location.getBlock().setType(Material.CHEST, false);
 		Chest chest = (Chest) location.getBlock().getState();
-		Inventory inv = chest.getInventory();
+		setChestContents(chest.getBlockInventory());
+		setChestContents(chest.getInventory());
+	}
+	
+	/** @param inv The inventory whose contents will be set to that of an
+	 *            island's starting chest */
+	public static final void setChestContents(Inventory inv) {
+		inv.clear();
 		inv.setItem(0, new ItemStack(Material.ICE, 2));
 		inv.setItem(1, new ItemStack(Material.LAVA_BUCKET, 1));
 		inv.setItem(2, new ItemStack(Material.RED_MUSHROOM, 1));
 		inv.setItem(3, new ItemStack(Material.BROWN_MUSHROOM, 1));
 		inv.setItem(4, new ItemStack(Material.SUGAR_CANE, 1));
-		inv.setItem(5, new ItemStack(Material.MELON_SLICE, 1));
+		inv.setItem(5, new ItemStack(Material.MELON_SLICE, 1));//Material.MELON, 1));
 		inv.setItem(6, new ItemStack(Material.PUMPKIN_SEEDS, 1));
 		inv.setItem(7, new ItemStack(Material.CACTUS, 1));
 		inv.setItem(8, new ItemStack(Material.BEETROOT_SEEDS, 1));
@@ -3524,16 +3715,30 @@ public final class Island {
 	
 	/** @return This Island */
 	public final Island restart() {
-		this.wipeMembersInventories(ChatColor.YELLOW + "The island you are a member of has been restarted.");
+		return this.restart(true);
+	}
+	
+	public final Island restart(boolean wipeMembersInventories) {
+		return this.restart(wipeMembersInventories, true, false);
+	}
+	
+	public final Island restart(boolean wipeMembersInventories, boolean deleteBlocks, boolean restoreBiome) {
+		if(wipeMembersInventories) {
+			this.wipeMembersInventories(ChatColor.YELLOW + "The island you are a member of has been restarted.");
+		}
 		if(this.islandType == null || this.islandType.trim().isEmpty()) {
 			this.islandType = "normal";
 		}
-		if(this.islandType.equalsIgnoreCase("normal")) {
-			this.generateIsland();
+		if(this.islandType.equalsIgnoreCase("normal") || (this.islandType.equalsIgnoreCase("schematic") && GeneratorMain.island_schematic.equalsIgnoreCase("none"))) {
+			String type = this.islandType;
+			this.generateIsland(deleteBlocks, restoreBiome);
+			this.islandType = type;
 		} else if(this.islandType.equalsIgnoreCase("square")) {
-			this.generateSquareIsland();
+			this.generateSquareIsland(deleteBlocks, restoreBiome);
+		} else if(this.islandType.equalsIgnoreCase("schematic")) {
+			this.generateSchematicIsland(deleteBlocks, restoreBiome);
 		} else {
-			this.generateIsland();
+			this.generateIsland(deleteBlocks, restoreBiome);
 		}
 		return this;
 	}
@@ -3562,12 +3767,16 @@ public final class Island {
 				for(int z = minZ; z <= maxZ; z++) {
 					Block block = world.getBlockAt(x, y, z);
 					BlockState state = block.getState();
-					if(state instanceof InventoryHolder) {
+					if(state instanceof Chest) {
+						((Chest) state).getInventory().clear();
+						state.update(true, true);
+						((Chest) state).getBlockInventory().clear();
+					} else if(state instanceof InventoryHolder) {
 						((InventoryHolder) state).getInventory().clear();//Prevent chests, etc. from dropping items, as they might land on the blocks that are about to be generated
 						state.update(true, true);
 					}
 					block.setType(Material.AIR, false);
-					if(restoreBiome) {
+					if(restoreBiome && y == 0) {
 						block.setBiome(Biome.OCEAN);
 					}
 				}

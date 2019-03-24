@@ -1,6 +1,5 @@
 package com.gmail.br45entei.enteisSkyblock.main;
 
-import com.gmail.br45entei.commands.UnsafeEnchantCommand;
 import com.gmail.br45entei.enteisSkyblock.challenge.Challenge;
 import com.gmail.br45entei.enteisSkyblock.challenge.Challenge.ChallengeCommand;
 import com.gmail.br45entei.enteisSkyblock.event.ChallengeCompleteEvent;
@@ -64,6 +63,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Chest;
 import org.bukkit.block.CreatureSpawner;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -176,6 +176,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		if(level == null) {
 			Main.getPlugin().getLogger().warning("A material was not set in the configuration file materialLevels.yml: " + material.name());
 			level = Double.valueOf(defaultLevel);
+			materialLevels.put(material, level);
 		}
 		return level.doubleValue();
 	}
@@ -612,23 +613,25 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	 * @param location New location to teleport the player to
 	 * @return <code>true</code> if the teleport was successful */
 	public static final boolean safeTeleport(Player player, Location location) {
-		if(!location.getBlock().getType().isTransparent() || !location.getBlock().getRelative(0, 1, 0).getType().isTransparent()) {
+		final Location original = new Location(location.getWorld(), location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
+		if(location.getBlock().getType().isSolid() || location.getBlock().getRelative(0, 1, 0).getType().isSolid()) {
 			while(location.getBlockY() <= location.getWorld().getMaxHeight()) {
 				location = location.add(0, 1, 0);
-				if(location.getBlock().getType().isTransparent() && location.getBlock().getRelative(0, 1, 0).getType().isTransparent() && location.getBlock().getRelative(0, 2, 0).getType().isTransparent()) {
+				if(!location.getBlock().getType().isSolid() && !location.getBlock().getRelative(0, 1, 0).getType().isSolid() && !location.getBlock().getRelative(0, 2, 0).getType().isSolid()) {
 					break;
 				}
 			}
 			if(location.getBlockY() >= location.getWorld().getMaxHeight()) {
+				location = new Location(original.getWorld(), original.getX(), original.getY(), original.getZ(), original.getYaw(), original.getPitch());
 				while(location.getBlockY() >= 1) {
 					location = location.subtract(0, 1, 0);
-					if(location.getBlock().getType().isTransparent() && location.getBlock().getRelative(0, 1, 0).getType().isTransparent() && location.getBlock().getRelative(0, 2, 0).getType().isTransparent()) {
+					if(!location.getBlock().getType().isSolid() && !location.getBlock().getRelative(0, 1, 0).getType().isSolid() && !location.getBlock().getRelative(0, 2, 0).getType().isSolid()) {
 						break;
 					}
 				}
 			}
 		}
-		player.setVelocity(new Vector(0.0, -player.getVelocity().getY(), 0.0));
+		player.setVelocity(new Vector(0.0, 0.1/*-player.getVelocity().getY()*/, 0.0));
 		return player.teleport(location);
 	}
 	
@@ -638,9 +641,10 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		if(Challenge.ChallengeCommand.isChallengeCommand(command)) {
 			return Challenge.ChallengeCommand.onCommand(sender, command, args);
 		}
-		if(UnsafeEnchantCommand.isUnsafeEnchantCommand(command)) {
+		/*if(UnsafeEnchantCommand.isUnsafeEnchantCommand(command)) {
 			return UnsafeEnchantCommand.onCommand(sender, command, args);
-		}
+		}*/
+		command = command.startsWith("enteisskyblock:") ? command.substring("enteisskyblock:".length()) : command;
 		Player user = sender instanceof Player ? (Player) sender : null;
 		if(command.equalsIgnoreCase("enteisskyblock")) {
 			if(sender.hasPermission("skyblock.admin")) {
@@ -679,9 +683,24 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				args[i] = tmp[i - 1];
 			}
 		}
-		if((command.equalsIgnoreCase("ih") || command.equalsIgnoreCase("hi") || command.equalsIgnoreCase("ig")) && args.length == 0) {
+		if((command.equalsIgnoreCase("ih") || command.equalsIgnoreCase("hi") || command.equalsIgnoreCase("ig")) && args.length >= 0) {
 			command = "island";
-			args = new String[] {"home"};
+			String[] mkArgs = new String[1 + args.length];
+			mkArgs[0] = "home";
+			for(int i = 1; i < mkArgs.length && i - 1 < args.length; i++) {
+				mkArgs[i] = args[i - 1];
+			}
+			args = mkArgs;
+		}
+		if((command.equalsIgnoreCase("island") || command.equalsIgnoreCase("is")) && args.length >= 1 && args[0].equalsIgnoreCase("unlock")) {
+			command = "island";
+			String[] mkArgs = new String[2 + (args.length - 1)];
+			mkArgs[0] = "lock";
+			mkArgs[1] = "off";
+			for(int i = 2; i < mkArgs.length && i - 2 < args.length; i++) {
+				mkArgs[i] = args[i - 2];
+			}
+			args = mkArgs;
 		}
 		if(command.equalsIgnoreCase("plotworld") || command.equalsIgnoreCase("creative")) {
 			if(user != null) {
@@ -711,7 +730,11 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					user.sendMessage(ChatColor.GRAY.toString().concat("Hostile mobs (to be)spawned on this island: ").concat(ChatColor.WHITE.toString()).concat(Integer.toString(Island.spawnHostileMobsOn(island, ignoreCramming, honorSpawnLimit))));
 					return true;
 				}
-				if(args.length == 1 && args[0].equalsIgnoreCase("test")) {
+				if(args.length >= 1 && args[0].equalsIgnoreCase("testIsland")) {
+					if(!user.hasPermission("skyblock.admin")) {
+						user.sendMessage(ChatColor.DARK_RED.toString().concat("You do not have permission to use this command."));
+						return true;
+					}
 					for(Island island : Island.getAllIslands()) {
 						if(island.isMember(user) && island.isTestIsland()) {
 							if(island.getHomeFor(user.getUniqueId()) != null) {
@@ -724,7 +747,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 				}
 				Island island = Island.getIslandFor(user);
-				if(args.length >= 1 && (args[0].equalsIgnoreCase("mobs") || args[0].equalsIgnoreCase("animals"))) {
+				/*if(args.length >= 1 && (args[0].equalsIgnoreCase("mobs") || args[0].equalsIgnoreCase("animals"))) {
 					if(island == null) {
 						sender.sendMessage(ChatColor.RED + "You are not a member of an island!");
 						sender.sendMessage(ChatColor.GREEN + "To get started, type \"" + ChatColor.WHITE + "/island create" + ChatColor.GREEN + "\" or \"" + ChatColor.WHITE + "/island join {memberName}" + ChatColor.GREEN + "\".");
@@ -769,7 +792,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 					sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + (args[0].equalsIgnoreCase("mobs") ? "mobs" : "animals") + " [on|off]" + ChatColor.DARK_GREEN + ": Turn hostile mob or animal spawning on or off for this island");
 					return true;
-				}
+				}*/
 				if(args.length == 2 && (args[0].equalsIgnoreCase("trust") || args[0].equalsIgnoreCase("untrust"))) {
 					if(island == null) {
 						sender.sendMessage(ChatColor.RED + "You are not a member of an island!");
@@ -807,13 +830,18 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 					return true;
 				} else if(args.length >= 1 && args[0].equalsIgnoreCase("create")) {
+					user.closeInventory();
 					if(island == null) {
-						String type = "normal";
+						String type = GeneratorMain.island_schematic.equalsIgnoreCase("none") ? "normal" : "schematic";
+						if(args.length >= 2 && (type.equalsIgnoreCase("normal") ? false : (!args[1].equalsIgnoreCase("schematic") && (args.length >= 3 ? !args[2].equalsIgnoreCase("nearspawn") : true)))) {//XXX Disabled island type and position selection
+							sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " create" + ChatColor.DARK_GREEN + ": Creates a new island for you to play on");
+							return true;
+						}
 						if(args.length == 1) {
 							island = Island.getNextAvailableIslandNearSpawn();
 						} else if(args.length >= 2) {
 							type = args[1];
-							if(!type.equalsIgnoreCase("normal") && !type.equalsIgnoreCase("square")) {
+							if(!type.equalsIgnoreCase("normal") && !type.equalsIgnoreCase("square") && !type.equalsIgnoreCase("schematic")) {
 								sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " create [normal|square] [nearspawn|random|faraway]" + ChatColor.DARK_GREEN + ": Creates a new island for you to play on");
 								return true;
 							}
@@ -843,6 +871,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							island.generateIsland();
 						} else if(type.equalsIgnoreCase("square")) {
 							island.generateSquareIsland();
+						} else if(type.equalsIgnoreCase("schematic")) {
+							island.generateSchematicIsland();
 						} else {
 							sender.sendMessage(ChatColor.DARK_RED + "ERROR: Unknown/unimplemented island type provided: " + type);
 							throw new IllegalStateException("Unknown/unimplemented island type provided: " + type);
@@ -1226,7 +1256,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					for(String member : members) {
 						sender.sendMessage(ChatColor.WHITE + member);
 					}
-					//TODO Finish this command
+					//TODO Finish this command - add island block totals in descending order from largest to smallest
 					return true;
 				} else if(args.length >= 1 && args[0].equalsIgnoreCase("level")) {
 					if(island == null) {
@@ -1420,6 +1450,17 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " delete" + ChatColor.RED + ": Allows you to completely delete the island if you are the owner. All of the island's blocks will be wiped, and all of its' members(including you) will have their inventories wiped as well.");
 					return true;
 				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("chest")) {
+					if(user.hasPermission("skyblock.chest")) {
+						if(Island.isInSkyworld(user)) {
+							InventoryGUI.getStorageChestForPlayer(user).show(user);
+						} else {
+							sender.sendMessage(ChatColor.RED + "You can only access your storage chest in the skyworld.");
+						}
+					}
+					sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to use this command.");
+					return true;
+				}
 				//XXX /island gui
 				InventoryGUI gui = new InventoryGUI(ChatColor.DARK_GREEN + "Skyblock Menu", 18) {
 					
@@ -1432,22 +1473,36 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						if(island == null) {
 							switch(slot) {
 							case 0:
-								Main.server.dispatchCommand(sender, "island create normal nearspawn");
+								if(!GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create schematic nearspawn");
+								} else {
+									Main.server.dispatchCommand(sender, "island create normal nearspawn");
+								}
 								break;
 							case 1:
-								Main.server.dispatchCommand(sender, "island create normal faraway");
+								if(GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create normal faraway");
+								}
 								break;
 							case 2:
-								Main.server.dispatchCommand(sender, "island create normal random");
+								if(GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create normal random");
+								}
 								break;
 							case 3:
-								Main.server.dispatchCommand(sender, "island create square nearspawn");
+								if(GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create square nearspawn");
+								}
 								break;
 							case 4:
-								Main.server.dispatchCommand(sender, "island create square faraway");
+								if(GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create square faraway");
+								}
 								break;
 							case 5:
-								Main.server.dispatchCommand(sender, "island create square random");
+								if(GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+									Main.server.dispatchCommand(sender, "island create square random");
+								}
 								break;
 							case 8:
 								final List<Island> joinable = Island.getJoinableIslands();
@@ -1491,7 +1546,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 											setInventoryWithIslandJoinPage(this, inventory);
 											return;
 										}
-										if(clicked != null && clicked.getType() == Material.LEGACY_SKULL_ITEM && clicked.hasItemMeta()) {
+										if(clicked != null && clicked.getType() == Material.PLAYER_HEAD && clicked.hasItemMeta()) {
 											SkullMeta meta = (SkullMeta) clicked.getItemMeta();
 											OfflinePlayer chosenOwner = meta.getOwningPlayer();
 											Island chosen = Island.getIslandFor(chosenOwner);
@@ -1568,17 +1623,21 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				}.setDefaultClickSound();
 				//sender.sendMessage(ChatColor.YELLOW + "The Skyblock GUI system has not been implemented yet. Sorry!");
 				if(island == null) {
-					//TODO finish changing these to load from config!
-					gui.setSlot(0, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area."));
-					gui.setSlot(1, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-faraway.title", ChatColor.GREEN + "Create Normal Far Away"), this.getStringList("island.gui-lore.uncreated.normal-faraway.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands."));
-					gui.setSlot(2, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-random.title", ChatColor.GREEN + "Create Normal Random"), this.getStringList("island.gui-lore.uncreated.normal-random.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location."));
-					gui.setSlot(3, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-nearspawn.title", ChatColor.GREEN + "Create Square Near Spawn"), this.getStringList("island.gui-lore.uncreated.square-nearspawn.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area."));
-					gui.setSlot(4, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-faraway.title", ChatColor.GREEN + "Create Square Far Away"), this.getStringList("island.gui-lore.uncreated.square-faraway.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands."));
-					gui.setSlot(5, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-random.title", ChatColor.GREEN + "Create Square Random"), this.getStringList("island.gui-lore.uncreated.square-random.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location."));
+					if(!GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+						gui.setSlot(0, Material.GRASS_BLOCK, ChatColor.GREEN + "Create Island", this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create an island."));
+					} else {
+						//TODO finish changing these to load from config!
+						gui.setSlot(0, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-nearspawn.title", ChatColor.GREEN + "Create Normal Near Spawn"), this.getStringList("island.gui-lore.uncreated.normal-nearspawn.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "near the spawn area."));
+						gui.setSlot(1, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-faraway.title", ChatColor.GREEN + "Create Normal Far Away"), this.getStringList("island.gui-lore.uncreated.normal-faraway.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "far away from other islands."));
+						gui.setSlot(2, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.normal-random.title", ChatColor.GREEN + "Create Normal Random"), this.getStringList("island.gui-lore.uncreated.normal-random.lore", ChatColor.GRAY + "Click to create a normal island", ChatColor.GRAY + "in a random location."));
+						gui.setSlot(3, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-nearspawn.title", ChatColor.GREEN + "Create Square Near Spawn"), this.getStringList("island.gui-lore.uncreated.square-nearspawn.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "near the spawn area."));
+						gui.setSlot(4, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-faraway.title", ChatColor.GREEN + "Create Square Far Away"), this.getStringList("island.gui-lore.uncreated.square-faraway.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "far away from other islands."));
+						gui.setSlot(5, Material.GRASS_BLOCK, this.getStringColor("island.gui-lore.uncreated.square-random.title", ChatColor.GREEN + "Create Square Random"), this.getStringList("island.gui-lore.uncreated.square-random.lore", ChatColor.GRAY + "Click to create a square island", ChatColor.GRAY + "in a random location."));
+					}
 					gui.setSlot(8, Material.SIGN, this.getStringColor("island.gui-lore.uncreated.join-island.title", ChatColor.GREEN + "Join an Island"), this.getStringList("island.gui-lore.uncreated.join-island.lore", ChatColor.GRAY + "Click to view a list of islands", ChatColor.GRAY + "that you can request to join."));
 				} else {
 					gui.setSlot(0, Material.SIGN, ChatColor.GREEN + "Island information", ChatColor.GRAY + "Click to view information about", ChatColor.GRAY + "your island.");
-					gui.setSlotIcon(1, new ItemStack(Material.LEGACY_BED, 1, (short) 14)).setSlotTitle(1, ChatColor.GREEN + "Island home").setSlotLore(1, ChatColor.GRAY + "Click to teleport to your island's ", ChatColor.GRAY + "home.");
+					gui.setSlotIcon(1, new ItemStack(Material.RED_BED, 1)).setSlotTitle(1, ChatColor.GREEN + "Island home").setSlotLore(1, ChatColor.GRAY + "Click to teleport to your island's ", ChatColor.GRAY + "home.");
 					gui.setSlot(2, Material.EXPERIENCE_BOTTLE, ChatColor.GREEN + "Island level", ChatColor.GRAY + "Click to calculate the island's", ChatColor.GRAY + "level.");
 					gui.setSlot(9, Material.GOLD_INGOT, ChatColor.GOLD + "Island Challenges", ChatColor.GRAY + "Click to view the island challenges");
 					gui.setSlot(16, Material.LEGACY_SPRUCE_DOOR_ITEM, ChatColor.RED + "Leave the Island", ChatColor.YELLOW + "Click to leave this island");
@@ -1595,30 +1654,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			}
 			return true;
 		}
-		if(command.equalsIgnoreCase("dev")) {
-			if(user != null && user.hasPermission("skyblock.dev")) {
-				if(args.length == 0 || (args.length == 1 && (args[0].equalsIgnoreCase("help") || args[0].equals("?")))) {
-					sender.sendMessage(ChatColor.WHITE + "/dev setowner playername - Sets the owner of the island you are visiting");
-					sender.sendMessage(ChatColor.WHITE + "/dev delete - Run while visiting an island to delete it. This will wipe the island's member's inventories.");
-					sender.sendMessage(ChatColor.WHITE + "/dev deleteBlocks - Run while visiting an island to delete all of its' blocks. This does not remove the island.");
-					sender.sendMessage(ChatColor.WHITE + "/dev restart - Run while visiting an island to restart it. This will wipe the island's member's inventories.");
-					sender.sendMessage(ChatColor.WHITE + "/dev regenIsland [normal|square] - Run while visiting an island to regenerate the starting island. This does not delete blocks.");
-					sender.sendMessage(ChatColor.WHITE + "/dev lock|unlock - Run while visiting an island to lock or unlock the island. Only the island's members and trusted players will be able to enter it(including players who can run /dev).");
-					sender.sendMessage(ChatColor.WHITE + "/dev info - Run while visiting an island to view information about it.");
-				}
-				return true;
-			}
-			return false;
-		}
-		if(command.equalsIgnoreCase("chest")) {
-			if(Island.isInSkyworld(user)) {
-				InventoryGUI.getStorageChestForPlayer(user).show(user);
-			} else {
-				sender.sendMessage(ChatColor.RED + "You can only access your storage chest in the skyworld.");
-			}
-			return true;
-		}
-		if(command.equalsIgnoreCase("spawn")) {
+		if(command.equalsIgnoreCase("spawn") && Main.server.getPluginCommand("spawn") == null) {
 			if(user != null) {
 				World world = server.getWorld("world");
 				Location location = world != null ? world.getSpawnLocation() : user.getWorld().getSpawnLocation();
@@ -1647,17 +1683,17 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			}
 			return true;
 		}
-		if(command.equalsIgnoreCase("test")) {
+		if(command.equalsIgnoreCase("testIsland")) {
 			if(user != null) {
 				if(!user.hasPermission("skyblock.admin")) {
 					sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to create test islands.");
 					return true;
 				}
 				Island island = null;
-				String type = "normal";
+				String type = GeneratorMain.island_schematic.equals("none") ? "normal" : "schematic";
 				if(args.length >= 1) {
 					type = args[0];
-					if(!type.equalsIgnoreCase("normal") && !type.equalsIgnoreCase("square")) {
+					if(!type.equalsIgnoreCase("schematic") && !type.equalsIgnoreCase("normal") && !type.equalsIgnoreCase("square")) {
 						sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " [normal|square] [nearspawn|random|faraway]" + ChatColor.DARK_GREEN + ": Creates a new island for you to play on");
 						return true;
 					}
@@ -1696,84 +1732,257 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					island.generateIsland();
 				} else if(type.equalsIgnoreCase("square")) {
 					island.generateSquareIsland();
+				} else if(type.equalsIgnoreCase("schematic")) {
+					island.generateSchematicIsland();
 				} else {
 					throw new IllegalStateException("Unknown island type provided: " + type);
 				}
 				safeTeleport(user, island.getSpawnLocation());
-				sender.sendMessage(ChatColor.GREEN + "Successfully created your island. Have fun!");
-				sender.sendMessage(ChatColor.GREEN + "To invite other players, type \"" + ChatColor.WHITE + "/island invite {playername}" + ChatColor.GREEN + "\".");
+				sender.sendMessage(ChatColor.GREEN + "Successfully created your island. Have fun testing! Be sure to delete when finished, unless the island is going to belong to someone.");
+				//sender.sendMessage(ChatColor.GREEN + "To invite other players, type \"" + ChatColor.WHITE + "/island invite {playername}" + ChatColor.GREEN + "\".");
 				return true;
 			}
 			sender.sendMessage(ChatColor.DARK_RED + "This test command can only be used by players.");
 			return true;
 		}
-		if(command.equalsIgnoreCase("delete")) {
+		if(command.equalsIgnoreCase("dev")) {
 			if(user != null) {
 				if(!user.hasPermission("skyblock.admin")) {
-					sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to delete islands.");
+					sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to manage islands.");
 					return true;
 				}
-				Island check = Island.getIslandNearest(user.getLocation());
-				if(args.length >= 1 && args[0].equalsIgnoreCase("blocks")) {
+				if(args.length == 0 || (args.length == 1 && (args[0].equalsIgnoreCase("help") || args[0].equals("?")))) {
+					sender.sendMessage(ChatColor.YELLOW + "/dev deleteIsland [blocks] [restoreBiome:true|false] - Deletes the island that you are visiting. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev deleteBlocks - Run while visiting an island to delete all of its' blocks. This does not remove the island. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev delete {playername} [blocks] [restoreBiome:true|false] - Deletes the island that you specify. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev restart - Run while visiting an island to restart it. This will wipe the island's member's inventories. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev regenerate - Regenerates skyworld chunks. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev regenChest - Regenerates skyworld starter island chests. This overwrites all items in the targeted chest. Use with care!");
+					sender.sendMessage(ChatColor.YELLOW + "/dev regenIsland Run while visiting an island to regenerate the starting island. This does not delete blocks. Use with care!");
+					sender.sendMessage(ChatColor.WHITE + "/dev update - Run while visiting an island to update its worldguard region and other misc. internal settings. This command is safe to use.");
+					sender.sendMessage(ChatColor.WHITE + "/dev setType [normal|square|schematic] - Run while visiting an island to set its starting island type. This command is safe to use.");
+					//sender.sendMessage(ChatColor.WHITE + "/dev setowner playername - Sets the owner of the island you are visiting. Use with care!");
+					//sender.sendMessage(ChatColor.WHITE + "/dev lock|unlock - Run while visiting an island to lock or unlock the island. Only the island's members and trusted players will be able to enter it(including players who can run /dev).");
+					//sender.sendMessage(ChatColor.WHITE + "/dev info - Run while visiting an island to view information about it.");
+					sender.sendMessage(ChatColor.GREEN + "More sub-commands are coming! Stay tuned. :)");
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("update")) {
+					Island check = Island.getIslandNearest(user.getLocation());
 					if(check == null) {
-						check = Island.getOrCreateIslandNearest(user.getLocation());
-						Island.islands.remove(check);
+						sender.sendMessage(ChatColor.YELLOW + "You aren't standing near an active island. Move closer to one and try again.");
+						return true;
 					}
-					check.deleteBlocks(args.length == 2 && args[1].equalsIgnoreCase("true"));
-					sender.sendMessage(ChatColor.YELLOW + "Successfully wiped all blocks within the island at " + ChatColor.WHITE + check.getID() + ChatColor.YELLOW + ".");
-					sender.sendMessage(ChatColor.YELLOW + "If the island had members, their inventories were not affected.");
-				} else if(args.length == 0) {
-					if(check != null) {
-						String id = check.getID();
-						check.deleteCompletely();
-						check = null;
-						if(!user.isFlying()) {
-							safeTeleport(user, GeneratorMain.getSkyworldSpawnLocation());
+					check.update();
+					sender.sendMessage(ChatColor.GREEN + "Successfully told the island nearest you to update(regions, invitations, etc...).");
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("restart")) {
+					Island check = Island.getIslandNearest(user.getLocation());
+					if(check == null) {
+						sender.sendMessage(ChatColor.YELLOW + "You aren't standing near an active island. Move closer to one and try again.");
+						return true;
+					}
+					if(!check.canRestart()) {
+						if(args.length == 1 || (args.length >= 2 && !args[1].equalsIgnoreCase("confirm"))) {
+							sender.sendMessage(ChatColor.YELLOW.toString().concat("This island's restart cooldown ends in ").concat(Main.getLengthOfTime(check.getNextRestartTime() - System.currentTimeMillis())).concat(".\nAre you sure you wish to restart it now? This action cannot be undone!\nType \"").concat(ChatColor.WHITE.toString()).concat("/dev restart confirm").concat(ChatColor.YELLOW.toString()).concat("\" to confirm."));
+							return true;
 						}
-						sender.sendMessage(ChatColor.YELLOW + "Successfully deleted the island at " + ChatColor.WHITE + id + ChatColor.YELLOW + ".");
 					} else {
-						sender.sendMessage(ChatColor.DARK_RED + "The island location nearest you does not have an island.");
-						sender.sendMessage(ChatColor.YELLOW + "If there are leftover blocks in the island area, then type \"" + ChatColor.WHITE + "/delete blocks" + ChatColor.YELLOW + "\" instead, which only deletes blocks.");
+						if(args.length == 1 || (args.length >= 2 && !args[1].equalsIgnoreCase("confirm"))) {
+							sender.sendMessage(ChatColor.YELLOW.toString().concat("Are you sure you wish to restart this island? This action cannot be undone!\nType \"").concat(ChatColor.WHITE.toString()).concat("/dev restart confirm").concat(ChatColor.YELLOW.toString()).concat("\" to confirm."));
+							return true;
+						}
+					}
+					check.restart();
+					sender.sendMessage(ChatColor.GREEN + "Successfully restarted the island nearest you.");
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("setType")) {
+					final String usage = ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev setType [normal|square|schematic]" + ChatColor.YELLOW + " - Changes the island's starting type\nChanges take place after restarting or regenerating the island.";
+					Island check = Island.getIslandNearest(user.getLocation());
+					if(check == null) {
+						sender.sendMessage(ChatColor.YELLOW + "You aren't standing near an active island. Move closer to one and try again.");
+						return true;
+					}
+					if((args.length == 1 || args.length > 2) || (!args[1].equalsIgnoreCase("normal") && !args[1].equalsIgnoreCase("square") && !args[1].equalsIgnoreCase("schematic"))) {
+						sender.sendMessage(usage);
+						return true;
+					}
+					if(args[1].equalsIgnoreCase("normal")) {
+						check.setType("normal");
+					} else if(args[1].equalsIgnoreCase("square")) {
+						check.setType("square");
+					} else if(args[1].equalsIgnoreCase("schematic")) {
+						check.setType("schematic");
+					} else {
+						sender.sendMessage(usage);
+						return true;
+					}
+					sender.sendMessage(ChatColor.GREEN + "Successfully set the island's type to \"".concat(check.getType()).concat("\"."));
+					sender.sendMessage(ChatColor.GREEN + "Changes will take place the next time the island is restarted or regenerated.");
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("regenIsland")) {
+					Island check = Island.getIslandNearest(user.getLocation());
+					if(check == null) {
+						sender.sendMessage(ChatColor.YELLOW + "You aren't standing near an active island. Move closer to one and try again.");
+						return true;
+					}
+					if(args.length == 1 || (args.length >= 2 && !args[1].equalsIgnoreCase("confirm"))) {
+						sender.sendMessage(ChatColor.YELLOW.toString().concat("Are you sure you wish to regenerate this island's blocks now? This action cannot be undone!\nType \"").concat(ChatColor.WHITE.toString()).concat("/dev regenIsland confirm").concat(ChatColor.YELLOW.toString()).concat("\" to confirm."));
+						return true;
+					}
+					
+					check.restart(false, false, false);
+					sender.sendMessage(ChatColor.GREEN + "Successfully had the island nearest you regenerate its starting island.\nNo player inventories were wiped, and old blocks were not deleted.");
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("deleteIsland")) {
+					Island check = Island.getIslandNearest(user.getLocation());
+					if(args.length >= 2 && args[1].equalsIgnoreCase("blocks")) {
+						if(check == null) {
+							check = Island.getOrCreateIslandNearest(user.getLocation());
+							Island.islands.remove(check);
+						}
+						check.deleteBlocks(args.length == 3 && args[2].equalsIgnoreCase("true"));
+						sender.sendMessage(ChatColor.YELLOW + "Successfully wiped all blocks within the island at " + ChatColor.WHITE + check.getID() + ChatColor.YELLOW + ".");
+						sender.sendMessage(ChatColor.YELLOW + "If the island had members, their inventories were not affected.");
+					} else if(args.length == 1) {
+						if(check != null) {
+							String id = check.getID();
+							check.deleteCompletely();
+							check = null;
+							if(!user.isFlying()) {
+								safeTeleport(user, GeneratorMain.getSkyworldSpawnLocation());
+							}
+							sender.sendMessage(ChatColor.YELLOW + "Successfully deleted the island at " + ChatColor.WHITE + id + ChatColor.YELLOW + ".");
+						} else {
+							sender.sendMessage(ChatColor.DARK_RED + "The island location nearest you does not have an island.");
+							sender.sendMessage(ChatColor.YELLOW + "If there are leftover blocks in the island area, then type \"" + ChatColor.WHITE + "/delete blocks" + ChatColor.YELLOW + "\" instead, which only deletes blocks.");
+						}
+					} else {
+						sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev deleteIsland [blocks] [restoreBiome:true|false]" + ChatColor.YELLOW + " - The restoreBiome option is a boolean value, true or false.");
+					}
+				} else if(args.length >= 1 && args[0].equalsIgnoreCase("delete")) {
+					if(args.length >= 2) {
+						@SuppressWarnings("deprecation")
+						OfflinePlayer target = Main.server.getOfflinePlayer(args[1]);
+						Island check = Island.getIslandFor(target);
+						if(target.hasPlayedBefore() || check != null) {
+							if(args.length >= 3 && args[2].equalsIgnoreCase("blocks")) {
+								if(check == null) {
+									check = Island.getOrCreateIslandNearest(user.getLocation());
+									Island.islands.remove(check);
+								}
+								check.deleteBlocks(args.length == 4 && args[3].equalsIgnoreCase("true"));
+								sender.sendMessage(ChatColor.YELLOW + "Successfully wiped all blocks within the island at " + ChatColor.WHITE + check.getID() + ChatColor.YELLOW + ".");
+								sender.sendMessage(ChatColor.YELLOW + "If the island had members, their inventories were not affected.");
+							} else if(args.length == 2) {
+								if(check != null) {
+									String id = check.getID();
+									check.deleteCompletely();
+									check = null;
+									if(!user.isFlying()) {
+										safeTeleport(user, GeneratorMain.getSkyworldSpawnLocation());
+									}
+									sender.sendMessage(ChatColor.YELLOW + "Successfully deleted the island at " + ChatColor.WHITE + id + ChatColor.YELLOW + ".");
+								} else {
+									sender.sendMessage(ChatColor.DARK_RED + "The island location nearest you does not have an island.");
+									sender.sendMessage(ChatColor.YELLOW + "If there are leftover blocks in the island area, then type \"" + ChatColor.WHITE + "/delete blocks" + ChatColor.YELLOW + "\" instead, which only deletes blocks.");
+								}
+							} else {
+								sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev delete {player} [blocks] [restoreBiome:true|false]" + ChatColor.YELLOW + " - The restoreBiome option is a boolean value, true or false.");
+							}
+						} else {
+							if(!target.hasPlayedBefore()) {
+								sender.sendMessage(ChatColor.RED + "Player " + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.YELLOW + " either has not played before or does not exist.");
+							} else {
+								sender.sendMessage(ChatColor.RED + "Player " + ChatColor.WHITE + target.getName() + ChatColor.RESET + ChatColor.YELLOW + " does not have an island.");
+							}
+						}
+					} else {
+						sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev delete {player} [blocks] [restoreBiome:true|false]" + ChatColor.YELLOW + " - The restoreBiome option is a boolean value, true or false.");
+					}
+					/*Island check = Island.getIslandNearest(user.getLocation());
+					if(args.length >= 2 && args[1].equalsIgnoreCase("blocks")) {
+						if(check == null) {
+							check = Island.getOrCreateIslandNearest(user.getLocation());
+							Island.islands.remove(check);
+						}
+						check.deleteBlocks(args.length == 3 && args[2].equalsIgnoreCase("true"));
+						sender.sendMessage(ChatColor.YELLOW + "Successfully wiped all blocks within the island at " + ChatColor.WHITE + check.getID() + ChatColor.YELLOW + ".");
+						sender.sendMessage(ChatColor.YELLOW + "If the island had members, their inventories were not affected.");
+					} else if(args.length == 1) {
+						if(check != null) {
+							String id = check.getID();
+							check.deleteCompletely();
+							check = null;
+							if(!user.isFlying()) {
+								safeTeleport(user, GeneratorMain.getSkyworldSpawnLocation());
+							}
+							sender.sendMessage(ChatColor.YELLOW + "Successfully deleted the island at " + ChatColor.WHITE + id + ChatColor.YELLOW + ".");
+						} else {
+							sender.sendMessage(ChatColor.DARK_RED + "The island location nearest you does not have an island.");
+							sender.sendMessage(ChatColor.YELLOW + "If there are leftover blocks in the island area, then type \"" + ChatColor.WHITE + "/delete blocks" + ChatColor.YELLOW + "\" instead, which only deletes blocks.");
+						}
+					} else {
+						sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev delete {player} [blocks] [restoreBiome:true|false]" + ChatColor.YELLOW + " - The restoreBiome option is a boolean value, true or false.");
+					}*/
+				} else if(args.length >= 1 && args[0].equalsIgnoreCase("regenerate")) {
+					if(!sender.hasPermission("skyblock.admin")) {
+						sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to regenerate the skyworld chunks.");
+						sender.sendMessage(ChatColor.YELLOW + "Required permission node: \"" + ChatColor.WHITE + "skyblock.admin" + ChatColor.YELLOW + "\"");
+						return true;
+					}
+					if(user.getWorld() != GeneratorMain.getSkyworld()) {
+						user.sendMessage(ChatColor.RED + "You can only regenerate skyblock chunks in the skyworld.");
+						return true;
+					}
+					if(args.length == 2 && args[1].equalsIgnoreCase("confirm")) {
+						ArrayList<Chunk> chunks = new ArrayList<>(25);
+						for(int x = -32; x < 33; x++) {
+							for(int z = -32; z < 33; z++) {
+								Chunk chunk = getChunkAtWorldCoords(GeneratorMain.getSkyworld(), user.getLocation().getBlockX() + x, user.getLocation().getBlockZ() + z);
+								if(chunk != null && !chunks.contains(chunk)) {
+									chunks.add(chunk);
+								}
+							}
+						}
+						for(Chunk chunk : chunks) {
+							generateChunk(GeneratorMain.getSkyworld(), random, chunk);
+						}
+						user.sendMessage(ChatColor.GREEN + "Regenerated a 5x5 area of chunks around you.");
+					} else {
+						user.sendMessage(ChatColor.YELLOW + "Are you sure that you wish to regenerate the chunks around you?");
+						user.sendMessage(ChatColor.YELLOW + "This will overwrite any existing blocks, regardless if they are part of an island.");
+						user.sendMessage(ChatColor.YELLOW + "Type \"" + ChatColor.WHITE + "/regenerate confirm" + ChatColor.YELLOW + "\" to continue.");
+					}
+				} else if(args.length >= 1 && args[0].equalsIgnoreCase("regenChest")) {
+					if(!sender.hasPermission("skyblock.admin")) {
+						sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to regenerate skyworld island starter chests.");
+						sender.sendMessage(ChatColor.YELLOW + "Required permission node: \"" + ChatColor.WHITE + "skyblock.admin" + ChatColor.YELLOW + "\"");
+						return true;
+					}
+					Block target = user.getTargetBlockExact(4);
+					if(target != null && target.getState() instanceof Chest) {
+						Chest chest = (Chest) target.getState();
+						Island.setChestContents(chest.getInventory());
+						Island.setChestContents(chest.getBlockInventory());
+						sender.sendMessage(ChatColor.YELLOW + "The targeted chest has been cleared, and its' contents set to that of the default island starter chest.");
+					} else {
+						if(target == null || target.getType() == Material.AIR) {
+							sender.sendMessage(ChatColor.YELLOW + "No targeted block detected. Look at a chest within 4 blocks of you and try again.");
+						} else {
+							sender.sendMessage(ChatColor.YELLOW + "Targeted block is not a chest. Look at a chest within 4 blocks of you and try again.");
+						}
 					}
 				} else {
-					sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/delete [blocks] [setBiomeToOcean]");
+					sender.sendMessage(ChatColor.YELLOW + "Usage:");
+					Main.server.dispatchCommand(sender, "/dev help");
 				}
 			} else {
 				sender.sendMessage(ChatColor.DARK_RED + "This command can only be used by players.");
-			}
-			return true;
-		}
-		if(command.equalsIgnoreCase("regenerate")) {
-			if(!sender.hasPermission("skyblock.admin")) {
-				sender.sendMessage(ChatColor.DARK_RED + "You do not have permission to regenerate the skyworld chunks.");
-				return true;
-			}
-			if(user == null) {
-				sender.sendMessage(ChatColor.DARK_RED + "This command can only be used by players.");
-				return true;
-			}
-			if(user.getWorld() != GeneratorMain.getSkyworld()) {
-				user.sendMessage(ChatColor.RED + "You can only regenerate skyblock chunks in the skyworld.");
-				return true;
-			}
-			if(args.length == 1 && args[0].equalsIgnoreCase("confirm")) {
-				ArrayList<Chunk> chunks = new ArrayList<>(25);
-				for(int x = -32; x < 33; x++) {
-					for(int z = -32; z < 33; z++) {
-						Chunk chunk = getChunkAtWorldCoords(GeneratorMain.getSkyworld(), user.getLocation().getBlockX() + x, user.getLocation().getBlockZ() + z);
-						if(chunk != null && !chunks.contains(chunk)) {
-							chunks.add(chunk);
-						}
-					}
-				}
-				for(Chunk chunk : chunks) {
-					generateChunk(GeneratorMain.getSkyworld(), random, chunk);
-				}
-				user.sendMessage(ChatColor.GREEN + "Regenerated a 5x5 area of chunks around you.");
-			} else {
-				user.sendMessage(ChatColor.YELLOW + "Are you sure that you wish to regenerate the chunks around you?");
-				user.sendMessage(ChatColor.YELLOW + "This will overwrite any existing blocks, regardless if they are part of an island.");
-				user.sendMessage(ChatColor.YELLOW + "Type \"" + ChatColor.WHITE + "/regenerate confirm" + ChatColor.YELLOW + "\" to continue.");
 			}
 			return true;
 		}
@@ -1924,7 +2133,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			}
 			return list;
 		}
-		if(command.equalsIgnoreCase("island")) {
+		if(command.equalsIgnoreCase("island") || command.equalsIgnoreCase("is")) {
 			Player user = sender instanceof Player ? (Player) sender : null;
 			Island island = Island.getIslandFor(user);
 			ArrayList<String> list = new ArrayList<>();
@@ -1940,6 +2149,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						list.add("info");
 						list.add("level");
 						list.add("lock");
+						list.add("unlock");
 						list.add("biome");
 						list.add("leave");
 						if(island.isOwner(user)) {
@@ -1955,6 +2165,9 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					if(args[0].equalsIgnoreCase("create")) {
 						list.add("normal");
 						list.add("square");
+						if(!GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
+							list.add("schematic");
+						}
 					} else if(args[0].equalsIgnoreCase("join")) {
 						for(Island is : Island.getAllIslands()) {
 							if(island.getOwner() != null && !is.hasReachedMemberCapacity()) {
@@ -2281,7 +2494,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	
 	/** @return The WorldEdit plugin, if loaded */
 	public static final Plugin getWorldEdit() {
-		return Main.pluginMgr.getPlugin("WorldEdit");
+		Plugin plugin = Main.pluginMgr.getPlugin("FastAsyncWorldEdit");
+		return plugin == null ? Main.pluginMgr.getPlugin("WorldEdit") : plugin;
 	}
 	
 	/** @return The WorldGuard plugin, if loaded */
@@ -2336,23 +2550,35 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		test.updateRegion();
 		test.generateIsland();*/
 		
-		ShapelessRecipe mossyCobblestone = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.MOSSY_COBBLESTONE, 1)).addIngredient(1, Material.COBBLESTONE).addIngredient(1, Material.VINE);
-		server.addRecipe(mossyCobblestone);
-		ShapelessRecipe mossyBricks = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.LEGACY_SMOOTH_BRICK, 1, (short) 1)).addIngredient(1, Material.LEGACY_SMOOTH_BRICK).addIngredient(1, Material.VINE);
-		server.addRecipe(mossyBricks);
-		ShapelessRecipe mossyCobbleWall = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.COBBLESTONE_WALL, 1, (short) 1)).addIngredient(1, Material.COBBLESTONE_WALL).addIngredient(1, Material.VINE);
-		server.addRecipe(mossyCobbleWall);
+		ShapelessRecipe mossyCobblestone = new ShapelessRecipe(new NamespacedKey(this, "0241139d-8c6a-4093-adad-fec4fe2b8b15"), new ItemStack(Material.MOSSY_COBBLESTONE, 1)).addIngredient(1, Material.COBBLESTONE).addIngredient(1, Material.VINE);
+		try {
+			server.addRecipe(mossyCobblestone);
+		} catch(IllegalStateException ignored) {
+		}
+		ShapelessRecipe mossyBricks = new ShapelessRecipe(new NamespacedKey(this, "f53a557e-7d16-4449-9bcb-8b330d856b13"), new ItemStack(Material.LEGACY_SMOOTH_BRICK, 1, (short) 1)).addIngredient(1, Material.LEGACY_SMOOTH_BRICK).addIngredient(1, Material.VINE);
+		try {
+			server.addRecipe(mossyBricks);
+		} catch(IllegalStateException ignored) {
+		}
+		ShapelessRecipe mossyCobbleWall = new ShapelessRecipe(new NamespacedKey(this, "372baa13-9865-48e1-a69e-f45db6d2e4e0"), new ItemStack(Material.COBBLESTONE_WALL, 1, (short) 1)).addIngredient(1, Material.COBBLESTONE_WALL).addIngredient(1, Material.VINE);
+		try {
+			server.addRecipe(mossyCobbleWall);
+		} catch(IllegalStateException ignored) {
+		}
 		
 		//This one is not working.
-		ShapelessRecipe melonSlices = new ShapelessRecipe(new NamespacedKey(this, UUID.randomUUID().toString()), new ItemStack(Material.MELON, 9)).addIngredient(1, Material.LEGACY_MELON_BLOCK);
-		server.addRecipe(melonSlices);
+		ShapelessRecipe melonSlices = new ShapelessRecipe(new NamespacedKey(this, "1083c12e-0614-41cf-b33d-76e88a410add"), new ItemStack(Material.MELON, 9)).addIngredient(1, Material.LEGACY_MELON_BLOCK);
+		try {
+			server.addRecipe(melonSlices);
+		} catch(IllegalStateException ignored) {
+		}
 		
 		ChallengeCommand.register();
-		UnsafeEnchantCommand.class.getName();//Prevents java.lang.NoClassDefFoundError: com/gmail/br45entei/commands/UnsafeEnchantCommand in onDisable...
-		PluginCommand command = this.getCommand("unsafeEnchant");
+		//UnsafeEnchantCommand.class.getName();//Prevents java.lang.NoClassDefFoundError: com/gmail/br45entei/commands/UnsafeEnchantCommand in onDisable...
+		/*PluginCommand command = this.getCommand("unsafeEnchant");
 		if(command != null) {
 			command.setExecutor((sender, command1, label, args) -> UnsafeEnchantCommand.onCommand(sender, label, args));
-		}
+		}*/
 		for(Player player : server.getOnlinePlayers()) {
 			InventoryView view = player.getOpenInventory();
 			if(InventoryGUI.isOldChestView(view)) {
@@ -3693,7 +3919,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			if(player.getGameMode() != GameMode.SURVIVAL && !(player.hasPermission("skyblock.gamemode." + player.getGameMode().name().toLowerCase()) || player.isOp())) {
 				player.setGameMode(GameMode.SURVIVAL);
 			}
-			if(island != null) {
+			//XXX Disabled island mob GUI scoreboard
+			/*if(island != null) {
 				Scoreboard check = player.getScoreboard();
 				if(!island.isPlayerOnIsland(player)) {
 					if(check != null && check.getObjective("MobTracker") != null) {
@@ -3704,7 +3931,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						island.updateScoreboardFor(player);
 					}
 				}
-			}
+			}*/
 			island = Island.getIslandContaining(event.getTo());
 			if(island != null) {
 				/*try {
@@ -4006,10 +4233,13 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			command = split[0];
 			args = Arrays.copyOfRange(split, 1, split.length);
 		}
-		if(plugin.getCommand(command) == null) {
+		if(plugin.getCommand(command) == null && Main.server.getPluginCommand(command) == null) {
 			if(plugin.onCommand(sender, null, command, args)) {
 				event.setCancelled(true);
 			}
+		} else if(command.equalsIgnoreCase("save-all")) {
+			Main.saveAll();
+			GeneratorMain.saveAll();
 		}
 	}
 	
@@ -4069,6 +4299,19 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	private static volatile boolean printedWTF = false;
 	
 	public static final Object getRegionManagerFor(World world) {
+		if(getWorldEdit() != null && getWorldGuard() != null) {
+			return _getRegionManagerFor(world);
+		}
+		return null;
+	}
+	
+	private static final Object _getRegionManagerFor(World world) {
+		if(getWorldGuard() == null) {
+			return null;
+		}
+		if(getWorldEdit() == null) {
+			return null;
+		}
 		try {
 			//Older way was MUCH simpler >_>
 			//com.sk89q.worldguard.bukkit.WorldGuardPlugin wg = com.sk89q.worldguard.bukkit.WorldGuardPlugin.inst();
@@ -4078,97 +4321,112 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			com.sk89q.worldedit.bukkit.BukkitWorld wrld = new com.sk89q.worldedit.bukkit.BukkitWorld(world);
 			return container.get(wrld);
 		} catch(NoClassDefFoundError ex) {
-			ex.printStackTrace();
+			ex.printStackTrace(System.err);
+			System.err.flush();
 			return null;
 		}
 	}
 	
 	private static final void updateSpawnRegionFor(World world) {
 		if(world.getEnvironment() == Environment.NORMAL) {
-			Island.setBiome(new int[] {-(GeneratorMain.getSpawnRegion() + 1), -(GeneratorMain.getSpawnRegion() + 1), GeneratorMain.getSpawnRegion() + 1, GeneratorMain.getSpawnRegion() + 1}, world, Biome.OCEAN);
+			Island.setBiome(new int[] {-(GeneratorMain.getSpawnRegion() + 1), -(GeneratorMain.getSpawnRegion() + 1), GeneratorMain.getSpawnRegion() - 1, GeneratorMain.getSpawnRegion() - 1}, world, Biome.WARM_OCEAN);
 		}
+		if(getWorldEdit() != null && getWorldGuard() != null) {
+			_updateSpawnRegionFor(world);
+		}
+	}
+	
+	private static final void _updateSpawnRegionFor(World world) {
 		if(getWorldGuard() == null) {
 			return;
 		}
+		if(getWorldEdit() == null) {
+			return;
+		}
 		try {
-			com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) getRegionManagerFor(world);
-			com.sk89q.worldguard.protection.regions.ProtectedRegion global = rm.getRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION);
-			if(global == null) {
-				global = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION, com.sk89q.worldedit.math.BlockVector3.at(-29999985, 0, -29999985), com.sk89q.worldedit.math.BlockVector3.at(29999984, world.getMaxHeight(), 29999984));
-				rm.addRegion(global);
-			}
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
-			global.setPriority(0);
-			com.sk89q.worldguard.protection.regions.ProtectedRegion spawnRegion = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion("spawn", com.sk89q.worldedit.math.BlockVector3.at(-(GeneratorMain.getSpawnRegion() + 1), 0, -(GeneratorMain.getSpawnRegion() + 1)), com.sk89q.worldedit.math.BlockVector3.at(GeneratorMain.getSpawnRegion(), world.getMaxHeight(), GeneratorMain.getSpawnRegion()));
-			rm.removeRegion("spawn");
-			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.GREET_MESSAGE, "&5You have entered the spawn area.");
-			//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.FAREWELL_MESSAGE, "&5You have left the spawn area.");
-			spawnRegion.setPriority(1);
-			rm.addRegion(spawnRegion);
 			try {
-				spawnRegion.setParent(global);
-			} catch(com.sk89q.worldguard.protection.regions.ProtectedRegion.CircularInheritanceException e) {
-				throw new RuntimeException(e);
+				com.sk89q.worldguard.protection.managers.RegionManager rm = (com.sk89q.worldguard.protection.managers.RegionManager) getRegionManagerFor(world);
+				com.sk89q.worldguard.protection.regions.ProtectedRegion global = rm.getRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION);
+				if(global == null) {
+					global = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(com.sk89q.worldguard.protection.regions.ProtectedRegion.GLOBAL_REGION, com.sk89q.worldedit.math.BlockVector3.at(-29999985, 0, -29999985), com.sk89q.worldedit.math.BlockVector3.at(29999984, world.getMaxHeight(), 29999984));
+					rm.addRegion(global);
+				}
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHEST_ACCESS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CHORUS_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.CREEPER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DAMAGE_ANIMALS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.DESTROY_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDER_BUILD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERDRAGON_BLOCK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENDERPEARL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_ITEM_FRAME_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTITY_PAINTING_DESTROY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ENTRY, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXIT_VIA_TELEPORT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.EXP_DROPS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FALL_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIRE_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.FIREWORK_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GHAST_FIREBALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.GRASS_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_FORM, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ICE_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.INTERACT, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FIRE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LAVA_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LEAF_DECAY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTER, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.LIGHTNING, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MOB_SPAWNING, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MUSHROOMS, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.MYCELIUM_SPREAD, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.OTHER_EXPLOSION, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PASSTHROUGH, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PISTONS, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PLACE_VEHICLE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.POTION_SPLASH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.PVP, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.RIDE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SLEEP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_FALL, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SNOW_MELT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.SOIL_DRY, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.TNT, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.USE, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.VINE_GROWTH, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WATER_FLOW, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.WITHER_DAMAGE, com.sk89q.worldguard.protection.flags.StateFlag.State.DENY);
+				global.setPriority(0);
+				com.sk89q.worldguard.protection.regions.ProtectedRegion spawnRegion = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion("spawn", com.sk89q.worldedit.math.BlockVector3.at(-(GeneratorMain.getSpawnRegion() + 1), 0, -(GeneratorMain.getSpawnRegion() + 1)), com.sk89q.worldedit.math.BlockVector3.at(GeneratorMain.getSpawnRegion(), world.getMaxHeight(), GeneratorMain.getSpawnRegion()));
+				rm.removeRegion("spawn");
+				//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.GREET_MESSAGE, "&5You have entered the spawn area.");
+				//spawnRegion.setFlag(com.sk89q.worldguard.protection.flags.Flags.FAREWELL_MESSAGE, "&5You have left the spawn area.");
+				spawnRegion.setPriority(1);
+				rm.addRegion(spawnRegion);
+				try {
+					spawnRegion.setParent(global);
+				} catch(com.sk89q.worldguard.protection.regions.ProtectedRegion.CircularInheritanceException e) {
+					throw new RuntimeException(e);
+				}
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+				global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
+			} catch(NullPointerException wtf) {
+				Main.getPlugin().getLogger().warning("Unable to update WorldGuard spawn region for world " + world.getName());
+				if(!printedWTF) {
+					printedWTF = true;
+					Main.getPlugin().getLogger().log(Level.WARNING, "Stack trace:", wtf);
+				}
 			}
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_DROP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-			global.setFlag(com.sk89q.worldguard.protection.flags.Flags.ITEM_PICKUP, com.sk89q.worldguard.protection.flags.StateFlag.State.ALLOW);
-		} catch(NullPointerException wtf) {
+		} catch(NoClassDefFoundError ex) {
 			Main.getPlugin().getLogger().warning("Unable to update WorldGuard spawn region for world " + world.getName());
-			if(!printedWTF) {
-				printedWTF = true;
-				Main.getPlugin().getLogger().log(Level.WARNING, "Stack trace:", wtf);
-			}
+			Main.getPlugin().getLogger().log(Level.WARNING, "Stack trace:", ex);
 		}
 	}
 	
