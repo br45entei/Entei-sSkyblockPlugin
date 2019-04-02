@@ -1,16 +1,23 @@
 package com.gmail.br45entei.enteisSkyblock.challenge;
 
 import com.gmail.br45entei.enteisSkyblock.event.ChallengeCompleteEvent;
+import com.gmail.br45entei.enteisSkyblock.event.ChallengeTierCompleteEvent;
+import com.gmail.br45entei.enteisSkyblock.main.InventoryGUI;
 import com.gmail.br45entei.enteisSkyblock.main.Island;
 import com.gmail.br45entei.enteisSkyblock.main.Main;
 import com.gmail.br45entei.enteisSkyblock.vault.VaultHandler;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
+import com.gmail.br45entei.util.StringUtil;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.logging.Level;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -21,6 +28,10 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -141,6 +152,33 @@ public class Challenge {
 					sender.sendMessage(ChatColor.GREEN + "Took challenge requirements from player \"" + ChatColor.WHITE + target.getPlayer().getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\" using challenge \"" + ChatColor.WHITE + challenge.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\"'s requirements.");
 					return true;
 				}
+				if(args.length >= 1 && (args[0].equalsIgnoreCase("viewPlayerChallenges") || args[0].equalsIgnoreCase("editPlayerChallenges") || args[0].equalsIgnoreCase("viewPlayer") || args[0].equalsIgnoreCase("editPlayer"))) {
+					if(!sender.hasPermission("challenge.manage")) {
+						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+						return true;
+					}
+					if(user == null) {
+						sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+						sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
+						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " setComplete {playerName} {challengeName} {timesCompleted}" + ChatColor.YELLOW + "\".");
+						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " completedTimes {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+						return true;
+					}
+					if(args.length != 2) {
+						sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " viewPlayerChallenges {playerName}" + ChatColor.YELLOW + "\".");
+						return true;
+					}
+					@SuppressWarnings("deprecation")
+					OfflinePlayer target = Main.server.getOfflinePlayer(args[1]);
+					if(target == null || !target.isOnline()) {
+						sender.sendMessage(ChatColor.YELLOW + "Player \"" + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.YELLOW + "\" does not exist or is not online.");
+						return true;
+					}
+					user.openInventory(Challenge.getChallengeScreen(target.getPlayer(), true));
+				}
 				if(args.length >= 1 && args[0].equalsIgnoreCase("takeRequirements")) {
 					if(!sender.hasPermission("challenge.manage")) {
 						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
@@ -201,6 +239,8 @@ public class Challenge {
 					sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
 					sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
 					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " setComplete {playerName} {challengeName} {timesCompleted}" + ChatColor.YELLOW + "\".");
+					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " completedTimes {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
 					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
 					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
 					return true;
@@ -218,7 +258,17 @@ public class Challenge {
 							sender.sendMessage(ChatColor.RED + "There is no challenge with the name \"" + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.RED + "\".");
 							return true;
 						}
-						Island island = Island.getIslandFor(user);
+						Island island = Island.getMainIslandFor(user);
+						ItemStack icon = challenge.getIconFor(user);
+						boolean debug1 = icon.hasItemMeta();
+						boolean debug2 = debug1 && icon.getItemMeta().hasDisplayName();
+						String title = debug2 ? ChatColor.stripColor(icon.getItemMeta().getDisplayName()).trim() : null;
+						boolean debug3 = title != null && title.endsWith(" - Locked");
+						if(debug3) {
+							sender.sendMessage(ChatColor.RED.toString().concat("You must complete at least half of the challenges in the previous tier before you can attempt this one!"));
+							return true;
+						}
+						Main.sendDebugMsg(user, "debug1: ".concat(Boolean.toString(debug1)).concat("; debug2: ").concat(Boolean.toString(debug2)).concat("; title: \"").concat(ChatColor.WHITE.toString()).concat(title == null ? "<null>" : title).concat(ChatColor.RESET.toString()).concat("\"; debug3: ").concat(Boolean.toString(debug3)).concat(";"));
 						if(challenge.complete(user)) {
 							sender.sendMessage(ChatColor.GREEN + "You just completed the \"" + ChatColor.WHITE + challenge.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\" challenge!");
 						} else {
@@ -271,23 +321,141 @@ public class Challenge {
 	}
 	
 	private static final ConcurrentLinkedDeque<Challenge> challenges = new ConcurrentLinkedDeque<>();
-	private static final int max_levels = 5;
+	private static final int max_levels = 6;
+	private static volatile boolean challengeDifficultiesAreHalfPercentagedTiers = true;//false;
 	
-	static {
-		challenges.add(new Challenge("cobblestone", "&8Cobblestone &7Generator", new String[] {"Mine a stack of cobble from a generator"}, Material.COBBLESTONE, (short) 0, 0, 0, new ItemStack[] {new ItemStack(Material.COBBLESTONE, Material.COBBLESTONE.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.IRON_NUGGET, 3)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FAST_DIGGING, 300 * 20, 2)}));
-		challenges.add(new Challenge("cactus", "&aCactus &6Farmer", new String[] {"Harvest an entire stack of cacti"}, Material.CACTUS, (short) 0, 0, 1, new ItemStack[] {new ItemStack(Material.CACTUS, Material.CACTUS.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.SAND, 3)}, 0.14, 0.141421356F, new String[0]));
-		challenges.add(new Challenge("wheat_farmer", "&2Wheat &6Farmer", new String[] {"Harvest three stacks of wheat"}, Material.HAY_BLOCK, (short) 0, 0, 2, new ItemStack[] {new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize()), new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize()), new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.DIRT, 3)}, 0.14, 0.141421356F, new String[0]));
-		challenges.add(new Challenge("apple_farmer", "&cApple &2Farmer", new String[] {"Harvest 32 apples from", "oak trees"}, Material.APPLE, (short) 0, 0, 3, new ItemStack[] {new ItemStack(Material.APPLE, 32)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.OAK_SAPLING, 1), new ItemStack(Material.BIRCH_SAPLING, 1), new ItemStack(Material.SPRUCE_SAPLING, 1), new ItemStack(Material.JUNGLE_SAPLING, 2), new ItemStack(Material.ACACIA_SAPLING, 1), new ItemStack(Material.DARK_OAK_SAPLING, 2)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FAST_DIGGING, 300 * 20, 2)}));
-		challenges.add(new Challenge("gold_miner", "&6Gold &7Miner", new String[] {"Obtain 12 gold bars from", "mining cobblestone"}, Material.GOLD_ORE, (short) 0, 0, 4, new ItemStack[] {new ItemStack(Material.GOLD_INGOT, 12)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.CLAY_BALL, 16), new ItemStack(Material.LEGACY_INK_SACK, 3, (short) 3), new ItemStack(Material.LILY_PAD, 6), new ItemStack(Material.VINE, 6), new ItemStack(Material.DEAD_BUSH, 4), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 0), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 1), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 2), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 3), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 4), new ItemStack(Material.LEGACY_DOUBLE_PLANT, 1, (short) 5)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.HEALTH_BOOST, 300 * 20, 0)}));
-		challenges.add(new Challenge("emerald_miner", "&2Emerald &7Miner", new String[] {"Obtain 5 emeralds from", "mining cobblestone"}, Material.EMERALD_ORE, (short) 0, 0, 5, new ItemStack[] {new ItemStack(Material.EMERALD, 5)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.OBSIDIAN, 14)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 300 * 20, 0)}));
-		challenges.add(new Challenge("diamond_miner", "&bDiamond &7Miner", new String[] {"Obtain 10 diamonds from", "mining cobblestone"}, Material.DIAMOND_ORE, (short) 0, 0, 6, new ItemStack[] {new ItemStack(Material.DIAMOND, 10)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.GRAVEL, 6), new ItemStack(Material.PRISMARINE, 1), new ItemStack(Material.PRISMARINE, 1, (short) 1), new ItemStack(Material.PRISMARINE, 1, (short) 2), new ItemStack(Material.SEA_LANTERN, 1), new ItemStack(Material.ICE, 2)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300 * 20, 0)}));
-		challenges.add(new Challenge("blaze_hunter", "&6Blaze &cHunter", new String[] {"Retrieve 32 blaze rods", "from their owners"}, Material.BLAZE_ROD, (short) 0, 1, 0, new ItemStack[] {new ItemStack(Material.BLAZE_ROD, 32)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.LEGACY_ENDER_PORTAL_FRAME, 1)}, 0.14, 0.141421356F, new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300 * 20, 0), new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 300 * 20, 0)}));
-		
+	/** If no challenge files are saved in the challenge save folder, this will
+	 * save the default challenges to the folder.
+	 * 
+	 * @return The list of challenges that were saved, or an empty list if there
+	 *         were already challenges saved */
+	public static final ArrayList<Challenge> saveDefaultChallenges() {
+		File folder = getChallengeSaveFolder();
+		boolean areThereYmlFiles = false;
+		for(File file : folder.listFiles()) {
+			if(file.isFile() && file.getName().endsWith(".yml")) {
+				areThereYmlFiles = true;
+				break;
+			}
+		}
+		ArrayList<Challenge> challenges = new ArrayList<>();
+		if(!areThereYmlFiles) {
+			challenges.add(new Challenge("cobblestone", "&8Cobblestone &7Generator", new String[] {"Mine a stack of cobble from a generator"}, Material.COBBLESTONE, (short) 0, 0, 0, new ItemStack[] {new ItemStack(Material.COBBLESTONE, Material.COBBLESTONE.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.IRON_NUGGET, 3)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FAST_DIGGING, 300 * 20, 2)}));
+			challenges.add(new Challenge("cactus", "&aCactus &6Farmer", new String[] {"Harvest an entire stack of cacti"}, Material.CACTUS, (short) 0, 0, 1, new ItemStack[] {new ItemStack(Material.CACTUS, Material.CACTUS.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.SAND, 3)}, 0.14, 0.141421356F, new String[0], new String[0]));
+			challenges.add(new Challenge("wheat_farmer", "&2Wheat &6Farmer", new String[] {"Harvest three stacks of wheat"}, Material.HAY_BLOCK, (short) 0, 0, 2, new ItemStack[] {new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize()), new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize()), new ItemStack(Material.WHEAT, Material.WHEAT.getMaxStackSize())}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.DIRT, 3)}, 0.14, 0.141421356F, new String[0], new String[0]));
+			challenges.add(new Challenge("apple_farmer", "&cApple &2Farmer", new String[] {"Harvest 32 apples from", "oak trees"}, Material.APPLE, (short) 0, 0, 3, new ItemStack[] {new ItemStack(Material.APPLE, 32)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.OAK_SAPLING, 1), new ItemStack(Material.BIRCH_SAPLING, 1), new ItemStack(Material.SPRUCE_SAPLING, 1), new ItemStack(Material.JUNGLE_SAPLING, 2), new ItemStack(Material.ACACIA_SAPLING, 1), new ItemStack(Material.DARK_OAK_SAPLING, 2)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FAST_DIGGING, 300 * 20, 2)}));
+			challenges.add(new Challenge("gold_miner", "&6Gold &7Miner", new String[] {"Obtain 12 gold bars"}, Material.GOLD_ORE, (short) 0, 0, 4, new ItemStack[] {new ItemStack(Material.GOLD_INGOT, 12)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.CLAY_BALL, 16), new ItemStack(Material.COCOA_BEANS, 3), new ItemStack(Material.LILY_PAD, 6), new ItemStack(Material.VINE, 6), new ItemStack(Material.DEAD_BUSH, 4), new ItemStack(Material.SUNFLOWER, 1), new ItemStack(Material.LILAC, 1), new ItemStack(Material.TALL_GRASS, 1), new ItemStack(Material.LARGE_FERN, 1), new ItemStack(Material.ROSE_BUSH, 1), new ItemStack(Material.PEONY, 1)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.HEALTH_BOOST, 300 * 20, 0)}));
+			challenges.add(new Challenge("emerald_miner", "&2Emerald &7Miner", new String[] {"Obtain 5 emeralds"}, Material.EMERALD_ORE, (short) 0, 0, 5, new ItemStack[] {new ItemStack(Material.EMERALD, 5)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.OBSIDIAN, 14)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 300 * 20, 0)}));
+			challenges.add(new Challenge("diamond_miner", "&bDiamond &7Miner", new String[] {"Obtain 10 diamonds"}, Material.DIAMOND_ORE, (short) 0, 0, 6, new ItemStack[] {new ItemStack(Material.DIAMOND, 10)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.GRAVEL, 6), new ItemStack(Material.PRISMARINE, 1), new ItemStack(Material.PRISMARINE_BRICKS, 1), new ItemStack(Material.DARK_PRISMARINE, 1), new ItemStack(Material.SEA_LANTERN, 1), new ItemStack(Material.ICE, 2)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300 * 20, 0)}));
+			challenges.add(new Challenge("blaze_hunter", "&6Blaze &cHunter", new String[] {"Retrieve 32 blaze rods", "from their owners"}, Material.BLAZE_ROD, (short) 0, 1, 0, new ItemStack[] {new ItemStack(Material.BLAZE_ROD, 32)}, true, 0, true, new ItemStack[0], new ItemStack[] {new ItemStack(Material.END_PORTAL_FRAME, 1)}, 0.14, 0.141421356F, new String[0], new String[0], new PotionEffect[] {new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 300 * 20, 0), new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 300 * 20, 0)}));
+			challenges.add(new Challenge("homestead", "&6Homestead", new String[] {"Build yourself a nice", "place to live"}, Material.BOOKSHELF, (short) 0, 1, 1, new ItemStack[] {}, false, 0, false, new ItemStack[0], new ItemStack[0], 0.28, 0.282842712F, new String[0], new String[0], new PotionEffect[0]));
+			
+			getChallengeByName("blaze_hunter", challenges)//
+					.addRequiredChallenge(getChallengeByName("cobblestone", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("cactus", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("wheat_farmer", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("apple_farmer", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("gold_miner", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("emerald_miner", challenges), CompletionType.FIRST)//
+					.addRequiredChallenge(getChallengeByName("diamond_miner", challenges), CompletionType.FIRST);
+			getChallengeByName("homestead", challenges).firstRewards.requiredChallenges.addAll(getChallengeByName("blaze_hunter", challenges).firstRewards.requiredChallenges);
+			saveChallenges(challenges, folder, true);
+		}
+		return challenges;
+	}
+	
+	/** @return The challenges save folder */
+	public static final File getChallengeSaveFolder() {
+		File folder = new File(Main.getPlugin().getDataFolder(), "Challenges");
+		folder.mkdirs();
+		return folder;
+	}
+	
+	/** @return Whether or not all the challenges saved successfully. */
+	public static final boolean saveChallenges() {
+		return saveChallenges(challenges, getChallengeSaveFolder(), true);
+	}
+	
+	/** @param challenges The list of challenges to save
+	 * @param challengeSaveFolder The folder to save the challenges in
+	 * @param deleteAllFilesFirst Whether or not all of the files in the given
+	 *            folder whose name ends with &quot;.yml&quot; should be deleted
+	 * @return Whether or not all the challenges saved successfully. */
+	public static final boolean saveChallenges(Collection<Challenge> challenges, File challengeSaveFolder, boolean deleteAllFilesFirst) {
+		challengeSaveFolder.mkdirs();
+		boolean success = true;
+		if(deleteAllFilesFirst) {
+			for(File file : challengeSaveFolder.listFiles()) {
+				if(file.isFile() && file.getName().endsWith(".yml")) {
+					file.delete();
+				}
+			}
+		}
+		for(Challenge challenge : challenges) {
+			success &= challenge.saveIn(challengeSaveFolder);
+		}
+		return success;
+	}
+	
+	public static final int loadChallenges() {
+		Challenge.saveDefaultChallenges();
+		return loadChallenges(challenges, getChallengeSaveFolder());
+	}
+	
+	public static final int loadChallenges(Collection<Challenge> challenges, File challengeSaveFolder) {
+		challenges.clear();
+		for(File file : challengeSaveFolder.listFiles()) {
+			if(file.isFile() && file.getName().endsWith(".yml")) {
+				Challenge challenge = null;
+				try {
+					challenge = loadFrom(file, challenges);
+				} catch(IOException | InvalidConfigurationException ex) {
+					Main.getPluginLogger().log(Level.WARNING, "\n /!\\  Unable to load challenge from config file \"".concat(file.getAbsolutePath()).concat("\"\n/___\\ "), ex);
+					continue;
+				}
+				if(challenge != null) {
+					challenges.add(challenge);
+				} else {
+					Main.getPluginLogger().warning("\n /!\\  Unable to load challenge from config file \"".concat(file.getAbsolutePath()).concat("\":\n/___\\ One of the following fields was set improperly: name(type=String); index(type=Integer); difficulty(type=Integer); icon(type=Material ENUM_NAME)\nCheck the file for errors, then reload the plugin settings with \"/esb reload\" to try again."));
+				}
+			}
+		}
+		for(Challenge challenge : new ArrayList<>(challenges)) {
+			challenge.firstRewards.requiredChallenges.clear();
+			for(String requiredChallenge : new ArrayList<>(challenge.firstRewards.loadedRequiredChallenges)) {
+				if(challenge.getName().equals(requiredChallenge)) {
+					challenge.firstRewards.loadedRequiredChallenges.remove(requiredChallenge);
+					//XXX add warning log about challenge requiring itself for first time completion
+					continue;
+				}
+				Challenge requirement = getChallengeByName(requiredChallenge, challenges);
+				if(requirement != null) {
+					challenge.firstRewards.requiredChallenges.add(requirement);
+				} else {
+					Main.getPluginLogger().warning("\n /!\\  Unable set a first-time required challenge for challenge \"".concat(challenge.name).concat("\":\n/___\\ Unknown challenge requirement \"").concat(requiredChallenge).concat("\"!"));
+				}
+			}
+			challenge.repeatRewards.requiredChallenges.clear();
+			for(String requiredChallenge : new ArrayList<>(challenge.repeatRewards.loadedRequiredChallenges)) {
+				if(challenge.getName().equals(requiredChallenge)) {
+					challenge.repeatRewards.loadedRequiredChallenges.remove(requiredChallenge);
+					//XXX add warning log about challenge requiring itself for repeated completions
+					continue;
+				}
+				Challenge requirement = getChallengeByName(requiredChallenge, challenges);
+				if(requirement != null) {
+					challenge.repeatRewards.requiredChallenges.add(requirement);
+				} else {
+					Main.getPluginLogger().warning("\n /!\\  Unable set a repeat-time required challenge for challenge \"".concat(challenge.name).concat("\":\n/___\\ Unknown challenge requirement \"").concat(requiredChallenge).concat("\"!"));
+				}
+			}
+		}
+		return challenges.size();
 	}
 	
 	/** @return The inventory title used for the challenge screen */
 	public static final String getChallengeScreenTitle() {
-		return ChatColor.GOLD + "Island Challenges";
+		return ChatColor.GOLD.toString().concat("Island Challenges");
 	}
 	
 	/** @return The size of the inventory used for the challenge screen */
@@ -299,12 +467,20 @@ public class Challenge {
 	 *            <b><code>null</code></b> for a generic audience
 	 * @return The resulting challenge screen */
 	public static final Inventory getChallengeScreen(Player player) {
-		Island island = Island.getIslandFor(player);
-		Inventory screen = Main.server.createInventory(player, getChallengeScreenSize(), getChallengeScreenTitle());
+		return getChallengeScreen(player, false);
+	}
+	
+	/** @param player The player who will be viewing the screen, or
+	 *            <b><code>null</code></b> for a generic audience
+	 * @return The resulting challenge screen */
+	public static final Inventory getChallengeScreen(Player player, boolean managing) {
+		//Island island = Island.getIslandFor(player);
+		Inventory screen = Main.server.createInventory(player, getChallengeScreenSize(), managing ? ChatColor.GOLD.toString().concat(player.getName().length() > (32 - 13) ? (player.getName().length() >= (32 - 16) ? player.getName().substring(0, player.getName().length() - (32 - 16)).concat("...") : player.getName().substring(0, player.getName().length() - (32 - 13))) : player.getName()).concat("'s Challenges") : getChallengeScreenTitle());
 		for(Challenge challenge : challenges) {
-			ItemStack icon = challenge.getIcon(island == null ? false : island.hasMemberCompleted(player, challenge));
+			ItemStack icon = challenge.getIconFor(player);//ItemStack icon = challenge.getIcon(island == null ? false : island.hasMemberCompleted(player, challenge));
 			screen.setItem(challenge.getInvSlot(), icon);
 		}
+		InventoryGUI.setMainMenuSign(screen, getChallengeScreenSize() - 1);
 		return screen;
 	}
 	
@@ -317,6 +493,11 @@ public class Challenge {
 	 * @return The challenge matching the given name, or
 	 *         <b><code>null</code></b> if none matched */
 	public static final Challenge getChallengeByName(String challengeName) {
+		return getChallengeByName(challengeName, null);
+	}
+	
+	public static final Challenge getChallengeByName(String challengeName, Collection<Challenge> challenges) {
+		challenges = challenges == null ? Challenge.challenges : challenges;
 		for(Challenge challenge : challenges) {
 			if(challenge.getName().equalsIgnoreCase(challengeName)) {
 				return challenge;
@@ -329,6 +510,11 @@ public class Challenge {
 	 * @return The challenge with the given slot number, or
 	 *         <b><code>null</code></b> if none matched */
 	public static final Challenge getChallengeBySlot(int slot) {
+		return getChallengeBySlot(slot, null);
+	}
+	
+	public static final Challenge getChallengeBySlot(int slot, Collection<Challenge> challenges) {
+		challenges = challenges == null ? Challenge.challenges : challenges;
 		for(Challenge challenge : challenges) {
 			if(challenge.getInvSlot() == slot) {
 				return challenge;
@@ -337,25 +523,276 @@ public class Challenge {
 		return null;
 	}
 	
+	/** @param difficulty The difficulty(or tier) that is desired(horizontal
+	 *            columns)
+	 * @return All challenges with the given difficulty, or an empty list if
+	 *         none matched */
+	public static final List<Challenge> getChallengesByDifficulty(int difficulty) {
+		return getChallengesByDifficulty(difficulty, null);
+	}
+	
+	public static final List<Challenge> getChallengesByDifficulty(int difficulty, Collection<Challenge> challenges) {
+		challenges = challenges == null ? Challenge.challenges : challenges;
+		List<Challenge> list = new ArrayList<>();
+		for(Challenge challenge : challenges) {
+			if(challenge.difficulty == difficulty) {
+				list.add(challenge);
+			}
+		}
+		return list;
+	}
+	
+	/** @param index The index that is desired(vertical rows)
+	 * @return All challenges with the given index, or an empty list if
+	 *         none matched */
+	public static final List<Challenge> getChallengesByIndex(int index) {
+		return getChallengesByIndex(index, null);
+	}
+	
+	public static final List<Challenge> getChallengesByIndex(int index, Collection<Challenge> challenges) {
+		challenges = challenges == null ? Challenge.challenges : challenges;
+		List<Challenge> list = new ArrayList<>();
+		for(Challenge challenge : challenges) {
+			if(challenge.index == index) {
+				list.add(challenge);
+			}
+		}
+		return list;
+	}
+	
 	private volatile String name;
 	private volatile String displayName;
 	private volatile String[] description = new String[0];
 	private volatile Material icon;
-	private volatile short iconData = 0;
-	private volatile int difficulty = 0, index = 0;
-	private volatile ItemStack[] requiredItems = new ItemStack[0];
-	private volatile boolean takeItems = false;
-	private volatile double requiredLevel = 0x0.0p0;
+	private volatile short iconData = 0x0;
+	private volatile int difficulty = 0x0, index = 0x0;
 	private volatile boolean repeatable = false;
-	private volatile ItemStack[] requiredBlocks = new ItemStack[0];
 	
-	private volatile ItemStack[] rewardItems = new ItemStack[0];
-	private volatile double rewardMoney = 0x0.0p0;
-	private volatile float rewardExp = 0x0.0p0F;
-	private volatile String[] rewardPermissions = new String[0];
-	private volatile PotionEffect[] rewardEffects = new PotionEffect[0];
+	protected final ChallengeInfo firstRewards;
+	protected final ChallengeInfo repeatRewards;
 	
-	/** @param name This challenge's configuration/command line name
+	public static enum CompletionType {
+		FIRST,
+		REPEAT;
+	}
+	
+	protected static final class ChallengeInfo {
+		
+		protected volatile double requiredLevel = 0x0.0p0;
+		protected volatile boolean takeItems = false;
+		protected volatile ItemStack[] requiredItems = new ItemStack[0];
+		protected volatile ItemStack[] requiredBlocks = new ItemStack[0];
+		
+		protected final ConcurrentLinkedDeque<Challenge> requiredChallenges = new ConcurrentLinkedDeque<>();
+		protected final ArrayList<String> loadedRequiredChallenges = new ArrayList<>();
+		
+		protected volatile ItemStack[] rewardItems = new ItemStack[0];
+		protected volatile float rewardExp = 0x0.0p0F;
+		protected volatile PotionEffect[] rewardEffects = new PotionEffect[0];
+		protected volatile double rewardMoney = 0x0.0p0;
+		protected volatile String[] rewardPermissions = new String[0];
+		protected volatile String[] rewardCommands = new String[0];
+		
+		public Challenge getParentChallenge() {
+			for(Challenge challenge : Challenge.getChallenges()) {
+				if(challenge.firstRewards == this || challenge.repeatRewards == this) {
+					return challenge;
+				}
+			}
+			return null;
+		}
+		
+		protected final void saveTo(ConfigurationSection mem, CompletionType type) {
+			type.name();
+			ConfigurationSection sec = mem.getConfigurationSection(type == CompletionType.REPEAT ? "repeatRewards" : "firstRewards");
+			sec = sec == null ? mem.createSection(type == CompletionType.REPEAT ? "repeatRewards" : "firstRewards") : sec;
+			Challenge parent = this.getParentChallenge();
+			for(Challenge challenge : this.requiredChallenges) {
+				if(challenge == parent || challenge.getName().equals(parent.getName())) {
+					this.requiredChallenges.remove(challenge);
+					continue;
+				}
+				if(!this.loadedRequiredChallenges.contains(challenge.getName())) {
+					this.loadedRequiredChallenges.add(challenge.getName());
+				}
+			}
+			for(String requiredChallenge : this.loadedRequiredChallenges) {
+				if(parent.getName().equals(requiredChallenge)) {
+					this.loadedRequiredChallenges.remove(requiredChallenge);
+					continue;
+				}
+			}
+			
+			sec.set("requiredLevel", Double.valueOf(this.requiredLevel));
+			sec.set("takeItems", Boolean.valueOf(this.takeItems));
+			saveItemStackArrayTo(sec, "requiredItems", this.requiredItems);
+			saveItemStackArrayTo(sec, "requiredBlocks", this.requiredBlocks);
+			sec.set("requiredChallenges", this.loadedRequiredChallenges);
+			saveItemStackArrayTo(sec, "rewardItems", this.rewardItems);
+			sec.set("rewardExp", Double.valueOf(this.rewardExp));
+			saveConfigSerializableArrayTo(sec, "rewardEffects", this.rewardEffects);//sec.set("rewardEffects", Arrays.asList(this.rewardEffects));
+			sec.set("rewardMoney", Double.valueOf(this.rewardMoney));
+			sec.set("rewardPermissions", Arrays.asList(this.rewardPermissions));
+			sec.set("rewardCommands", Arrays.asList(this.rewardCommands));
+			
+		}
+		
+		protected final void loadFrom(ConfigurationSection mem, CompletionType type) {
+			type.name();
+			ConfigurationSection sec = mem.getConfigurationSection(type == CompletionType.REPEAT ? "repeatRewards" : "firstRewards");
+			if(sec != null) {
+				this.requiredLevel = sec.getDouble("requiredLevel", 0x0.0p0);
+				this.takeItems = sec.getBoolean("takeItems", false);
+				this.requiredItems = loadItemStackArrayFrom(sec, "requiredItems", new ItemStack[0]);
+				this.requiredBlocks = loadItemStackArrayFrom(sec, "requiredBlocks", new ItemStack[0]);
+				
+				this.loadedRequiredChallenges.addAll(sec.getStringList("requiredChallenges"));
+				
+				this.rewardItems = loadItemStackArrayFrom(sec, "rewardItems", new ItemStack[0]);
+				this.rewardExp = Double.valueOf(sec.getDouble("rewardExp", 0x0.0p0)).floatValue();
+				this.rewardEffects = loadConfigSerializableArrayFrom(sec, "rewardEffects", new PotionEffect[0]);
+				this.rewardMoney = sec.getDouble("rewardMoney", 0x0.0p0);
+				this.rewardPermissions = sec.getStringList("rewardPermissions").toArray(new String[sec.getStringList("rewardPermissions").size()]);
+				this.rewardCommands = sec.getStringList("rewardCommands").toArray(new String[sec.getStringList("rewardCommands").size()]);
+				
+			}
+		}
+		
+	}
+	
+	public final File getFile(File folder) {
+		return new File(folder, StringUtil.makeFileNameFileSystemSafe(this.name.concat(".yml")));
+	}
+	
+	public final boolean saveIn(File folder) {
+		File file = this.getFile(folder);
+		YamlConfiguration config = new YamlConfiguration();
+		this.saveTo(config);
+		try {
+			config.save(file);
+			return true;
+		} catch(IOException ex) {
+			Main.getPluginLogger().log(Level.WARNING, "Unable to save challenge \"".concat(this.name).concat("\" to file \"").concat(file.getAbsolutePath()).concat("\""), ex);
+			return false;
+		}
+	}
+	
+	public final void saveTo(ConfigurationSection mem) {
+		mem.set("name", this.name);
+		mem.set("displayName", this.displayName);
+		mem.set("description", Arrays.asList(this.description));
+		mem.set("icon", this.icon.name());
+		mem.set("iconData", Integer.valueOf(this.iconData));
+		mem.set("difficulty", Integer.valueOf(this.difficulty));
+		mem.set("index", Integer.valueOf(this.index));
+		mem.set("repeatable", Boolean.valueOf(this.repeatable));
+		
+		this.firstRewards.saveTo(mem, CompletionType.FIRST);
+		this.repeatRewards.saveTo(mem, CompletionType.REPEAT);
+	}
+	
+	public static final void saveItemStackArrayTo(ConfigurationSection mem, String name, ItemStack[] items) {
+		ConfigurationSection sec = mem.getConfigurationSection(name);
+		sec = sec == null ? mem.createSection(name) : sec;
+		int i = 0;
+		for(ItemStack item : items) {
+			if(item == null) {
+				continue;
+			}
+			sec.set(Integer.toString(i++), item);
+		}
+	}
+	
+	public static final ItemStack[] loadItemStackArrayFrom(ConfigurationSection mem, String name, ItemStack... def) {
+		ConfigurationSection sec = mem.getConfigurationSection(name);
+		ItemStack[] items = null;
+		if(sec != null) {
+			ArrayList<ItemStack> list = new ArrayList<>();
+			for(String key : sec.getKeys(false)) {
+				ItemStack item = sec.getItemStack(key, null);
+				if(item != null) {
+					list.add(item);
+				}
+			}
+			items = list.toArray(new ItemStack[list.size()]);
+		}
+		return items == null || items.length == 0 ? def : items;
+	}
+	
+	public static final <T extends ConfigurationSerializable> void saveConfigSerializableArrayTo(ConfigurationSection mem, String name, T[] items) {
+		ConfigurationSection sec = mem.getConfigurationSection(name);
+		sec = sec == null ? mem.createSection(name) : sec;
+		int i = 0;
+		for(T item : items) {
+			if(item == null) {
+				continue;
+			}
+			sec.set(Integer.toString(i++), item);
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public static final <T extends ConfigurationSerializable> T[] loadConfigSerializableArrayFrom(ConfigurationSection mem, String name, T... def) {
+		ConfigurationSection sec = mem.getConfigurationSection(name);
+		T[] items = null;
+		if(sec != null) {
+			ArrayList<T> list = new ArrayList<>();
+			for(String key : sec.getKeys(false)) {
+				Object obj = sec.get(key, null);
+				if(obj != null && obj instanceof ConfigurationSerializable) {
+					list.add((T) obj);
+				}
+			}
+			Class<?> clazz = list.isEmpty() ? null : list.get(0).getClass();
+			if(clazz != null) {
+				items = (T[]) Array.newInstance(clazz, list.size());
+			}
+			if(items != null && items.length == list.size()) {
+				for(int i = 0; i < items.length; i++) {
+					items[i] = list.get(i);
+				}
+			}
+		}
+		return items == null || items.length == 0 ? def : items;
+	}
+	
+	public static final Challenge loadFrom(File file, Collection<Challenge> challenges) throws IOException, InvalidConfigurationException {
+		YamlConfiguration config = new YamlConfiguration();
+		config.load(file);
+		Challenge challenge = loadFrom(config);
+		if(challenge == null) {
+			return null;
+		}
+		Challenge checkDuplicatedSlot = getChallengeBySlot(challenge.getInvSlot(), challenges);
+		if(checkDuplicatedSlot != null) {
+			throw new InvalidConfigurationException("Challenge \"".concat(challenge.name).concat("\" is attempting to use the inv slot ").concat(Integer.toString(challenge.getInvSlot())).concat("(difficulty=").concat(Integer.toString(challenge.difficulty)).concat(", index=").concat(Integer.toString(challenge.index)).concat("), which is already in use by challenge \"").concat(checkDuplicatedSlot.name).concat("\"!"));
+		}
+		return challenge;
+	}
+	
+	public static final Challenge loadFrom(ConfigurationSection mem) {
+		String name = mem.getString("name", null);
+		String displayName = mem.getString("displayName", name);
+		String[] description = mem.getStringList("description").toArray(new String[mem.getStringList("description").size()]);
+		short iconData = Integer.valueOf(mem.getInt("iconData", 0x0)).shortValue();
+		int difficulty = mem.getInt("difficulty", Integer.MAX_VALUE);
+		int index = mem.getInt("index", Integer.MAX_VALUE);
+		boolean repeatable = mem.getBoolean("repeatable", false);
+		
+		Material icon = Material.getMaterial(mem.getString("icon", ""), false);
+		if(name == null || index == Integer.MAX_VALUE || difficulty == Integer.MAX_VALUE || icon == null) {
+			return null;
+		}
+		
+		ChallengeInfo firstRewards = new ChallengeInfo();
+		ChallengeInfo repeatRewards = new ChallengeInfo();
+		firstRewards.loadFrom(mem, CompletionType.FIRST);
+		repeatRewards.loadFrom(mem, CompletionType.REPEAT);
+		
+		return new Challenge(name, displayName, description, icon, iconData, difficulty, index, repeatable, firstRewards, repeatRewards);
+	}
+	
+	/** @param commandName This challenge's configuration/command line name
 	 * @param displayName This challenge's display name
 	 * @param description This challenge's description
 	 * @param icon This challenge's material icon(used in the challenge
@@ -386,34 +823,114 @@ public class Challenge {
 	 *            reward for completing this challenge
 	 * @param rewardEffects Effects given to the player as a reward for
 	 *            completing this challenge */
-	protected Challenge(String name, String displayName, String[] description, Material icon, short iconData, int difficulty, int index, ItemStack[] requiredItems, boolean takeItems, double requiredLevel, boolean repeatable, ItemStack[] requiredBlocks, ItemStack[] rewardItems, double rewardMoney, float rewardExp, String[] rewardPermissions, PotionEffect... rewardEffects) {
-		this.name = name;
+	protected Challenge(String commandName, String displayName, String[] description, Material icon, short iconData, int difficulty, int index, ItemStack[] requiredItems, boolean takeItems, double requiredLevel, boolean repeatable, ItemStack[] requiredBlocks, ItemStack[] rewardItems, double rewardMoney, float rewardExp, String[] rewardPermissions, String[] rewardCommands, PotionEffect... rewardEffects) {
+		this.name = commandName;
 		this.displayName = displayName == null || displayName.trim().isEmpty() ? this.name : displayName;
 		this.description = description;
 		this.icon = icon == null ? Material.STONE : icon;
 		this.iconData = iconData;
 		this.difficulty = Math.max(0, Math.min(max_levels - 1, difficulty));
 		this.index = Math.max(0, Math.min(8, index));
-		this.requiredItems = Main.clean(requiredItems);
-		this.takeItems = takeItems;
-		this.requiredLevel = requiredLevel;
 		this.repeatable = repeatable;
-		this.requiredBlocks = Main.clean(requiredBlocks);
-		this.rewardItems = Main.clean(rewardItems);
-		this.rewardMoney = Math.abs(rewardMoney);
-		this.rewardExp = Math.abs(rewardExp);
-		this.rewardPermissions = Main.clean(rewardPermissions);
-		this.rewardEffects = Main.clean(rewardEffects);
-		if(this.requiredBlocks.length > 0 || this.requiredLevel > 0x0.0p0) {
-			this.repeatable = this.requiredItems.length > 0 && this.takeItems ? repeatable : false;
+		this.firstRewards = new ChallengeInfo();
+		this.firstRewards.requiredItems = Main.clean(requiredItems);
+		this.firstRewards.takeItems = takeItems;
+		this.firstRewards.requiredLevel = requiredLevel;
+		this.firstRewards.requiredBlocks = Main.clean(requiredBlocks);
+		this.firstRewards.rewardItems = Main.clean(rewardItems);
+		this.firstRewards.rewardMoney = Math.abs(rewardMoney);
+		this.firstRewards.rewardExp = Math.abs(rewardExp);
+		this.firstRewards.rewardPermissions = Main.clean(rewardPermissions);
+		this.firstRewards.rewardCommands = Main.clean(rewardCommands);
+		this.firstRewards.rewardEffects = Main.clean(rewardEffects);
+		if(this.firstRewards.requiredBlocks.length > 0 || this.firstRewards.requiredLevel > 0x0.0p0) {
+			this.repeatable = this.firstRewards.requiredItems.length > 0 && this.firstRewards.takeItems ? repeatable : false;
 		}
-		if(this.requiredItems.length > 0 && !this.takeItems) {
+		if(this.firstRewards.requiredItems.length > 0 && !this.firstRewards.takeItems) {
 			this.repeatable = false;
 		}
-		if(this.rewardPermissions.length > 0) {
+		if(this.firstRewards.rewardPermissions.length > 0) {
 			this.repeatable = false;
 		}
-		
+		this.repeatRewards = new ChallengeInfo();
+	}
+	
+	/** @param commandName This challenge's configuration/command line name
+	 * @param displayName This challenge's display name
+	 * @param description This challenge's description
+	 * @param icon This challenge's material icon(used in the challenge
+	 *            inventory screen)
+	 * @param iconData This challenge's icon data(used in the challenge
+	 *            inventory screen)
+	 * @param difficulty This challenge's difficulty level. 0 = easy, 1 =
+	 *            medium, 2 = hard, 3 = expert, 4 = master
+	 * @param index The index for this challenge
+	 * @param repeatable Whether or not this challenge is repeatable - note that
+	 *            this is overridden in the event that blocks are required to
+	 *            complete this challenge, as blocks cannot be taken
+	 * @param firstRewards The requirements and rewards that will affect players
+	 *            who have never completed this challenge before
+	 * @param repeatRewards The requirements and rewards that will affect
+	 *            players who have already completed this challenge at least
+	 *            once */
+	public Challenge(String commandName, String displayName, String[] description, Material icon, short iconData, int difficulty, int index, boolean repeatable, ChallengeInfo firstRewards, ChallengeInfo repeatRewards) {
+		this.name = commandName;
+		this.displayName = displayName;
+		this.description = description;
+		this.icon = icon;
+		this.iconData = iconData;
+		this.difficulty = difficulty;
+		this.index = index;
+		this.repeatable = repeatable;
+		this.firstRewards = firstRewards;
+		this.repeatRewards = repeatRewards;
+	}
+	
+	/** @param challenge The challenge to check
+	 * @param type The challenge completion type(information about the challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return Whether or not this challenge requires the given one to be
+	 *         completed in order to be completable */
+	public boolean doesRequire(Challenge challenge, CompletionType type) {
+		type.name();
+		switch(type) {
+		case FIRST:
+			return this.firstRewards.requiredChallenges.contains(challenge);
+		case REPEAT:
+			return this.repeatRewards.requiredChallenges.contains(challenge);
+		default:
+			throw new IllegalStateException("Unknown/unimplemented CompletionType: ".concat(type.name()));
+		}
+	}
+	
+	/** @param requirement The challenge to add as a requirement
+	 * @param type The challenge completion type(information about the challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return This challenge */
+	public Challenge addRequiredChallenge(Challenge requirement, CompletionType type) {
+		if(requirement == null || requirement == this || requirement.doesRequire(this, type) || this.doesRequire(requirement, type)) {
+			return this;
+		}
+		(type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).requiredChallenges.addLast(requirement);
+		return this;
+	}
+	
+	/** @param requirement The challenge to remove as a requirement
+	 * @param type The challenge completion type(information about the challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return This challenge */
+	public Challenge removeRequiredChallenge(Challenge requirement, CompletionType type) {
+		if(requirement == null) {
+			return this;
+		}
+		ChallengeInfo info = type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards;
+		while(info.requiredChallenges.contains(requirement)) {
+			info.requiredChallenges.remove(requirement);
+		}
+		return this;
 	}
 	
 	private static final ItemStack[] safeCopy(ItemStack[] copy) {
@@ -441,10 +958,162 @@ public class Challenge {
 		return this.index + (this.difficulty * 9);
 	}
 	
-	/** @param completed Whether or not the player viewing the challenge screen
-	 *            has completed this challenge
+	public static final String getTierTitle(int tier) {
+		switch(tier) {
+		default:
+			return ChatColor.WHITE.toString().concat(ChatColor.BOLD.toString()).concat("Non-existant Challenge Tier(Error!)");
+		case 0://Easy
+			return ChatColor.GREEN.toString().concat(ChatColor.BOLD.toString()).concat("Easy Challenge Tier");
+		case 1://Medium
+			return ChatColor.YELLOW.toString().concat(ChatColor.BOLD.toString()).concat("Medium Challenge Tier");
+		case 2://Hard
+			return ChatColor.GOLD.toString().concat(ChatColor.BOLD.toString()).concat("Hard Challenge Tier");
+		case 3://Expert
+			return ChatColor.DARK_RED.toString().concat(ChatColor.BOLD.toString()).concat("Expert Challenge Tier");
+		case 4://Master
+			return ChatColor.DARK_PURPLE.toString().concat(ChatColor.BOLD.toString()).concat("Master Challenge Tier");
+		case 5://Impossible
+			return ChatColor.DARK_GRAY.toString().concat(ChatColor.BOLD.toString()).concat("(Im)possible Challenge Tier");
+		}
+	}
+	
+	public final ItemStack getLockedIcon() {
+		List<String> lore = new ArrayList<>();
+		Material material;
+		switch(this.difficulty) {
+		case 0://Easy
+		default:
+			material = Material.LIME_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.GREEN.toString().concat("This easy challenge is locked for some reason. Hrrm."));
+			lore.add(ChatColor.GREEN.toString().concat("Unlock at least half of the non-existant"));
+			lore.add(ChatColor.GREEN.toString().concat("previous tier of challenges to unlock these."));
+			lore.add(ChatColor.WHITE.toString().concat(ChatColor.BOLD.toString()).concat("(Contact a staff member for assistance.)"));
+			break;
+		case 1://Medium
+			material = Material.YELLOW_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.YELLOW.toString().concat("This medium challenge is locked."));
+			lore.add(ChatColor.YELLOW.toString().concat("Unlock at least half of the previous"));
+			lore.add(ChatColor.YELLOW.toString().concat("tier of challenges to unlock these."));
+			break;
+		case 2://Hard
+			material = Material.ORANGE_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.GOLD.toString().concat("This hard challenge is locked."));
+			lore.add(ChatColor.GOLD.toString().concat("Unlock at least half of the previous"));
+			lore.add(ChatColor.GOLD.toString().concat("tier of challenges to unlock these."));
+			break;
+		case 3://Expert
+			material = Material.RED_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.DARK_RED.toString().concat("This expert challenge is locked."));
+			lore.add(ChatColor.DARK_RED.toString().concat("Unlock at least half of the previous"));
+			lore.add(ChatColor.DARK_RED.toString().concat("tier of challenges to unlock these."));
+			break;
+		case 4://Master
+			material = Material.PURPLE_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat("This master challenge is locked."));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat("Unlock at least half of the previous"));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat("tier of challenges to unlock these."));
+			break;
+		case 5://Impossible
+			material = Material.BLACK_STAINED_GLASS_PANE;
+			lore.add(getTierTitle(this.difficulty));
+			lore.add(ChatColor.DARK_GRAY.toString().concat("This (im)possible challenge is locked."));
+			lore.add(ChatColor.DARK_GRAY.toString().concat("Unlock at least half of the previous"));
+			lore.add(ChatColor.DARK_GRAY.toString().concat("tier of challenges to unlock these."));
+			break;
+		}
+		ItemStack icon = new ItemStack(material, 1);
+		ItemMeta meta = Main.server.getItemFactory().getItemMeta(this.icon);
+		meta.setDisplayName(this.getDisplayName().concat(ChatColor.RESET.toString()).concat(ChatColor.RED.toString()).concat(" - Locked"));
+		meta.setLore(lore);
+		meta.addItemFlags(ItemFlag.values());//lol, even though all I needed to put here was ItemFlag.HIDE_ENCHANTS
+		icon.setItemMeta(meta);
+		return icon;
+	}
+	
+	public static final int getNumberOfChallengesInTier(int tier) {
+		return Challenge.getChallengesByDifficulty(tier).size();
+	}
+	
+	public static final int getMinimumNumberOfChallengesRequiredToCompleteTier(int totalChallengesInTier) {//(int tier) {
+		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers) {
+			return 0;
+		}
+		return (totalChallengesInTier / 2) + (totalChallengesInTier % 2 == 0 ? 0 : 1);
+	}
+	
+	public static final void main(String[] args) {
+		for(int i = 9; i >= 0; i--) {
+			System.out.println(Integer.toString(i).concat(": ").concat(Integer.toString(getMinimumNumberOfChallengesRequiredToCompleteTier(i))));
+		}
+	}
+	
+	public static final int getNumberOfChallengesLeftUntilTierIsComplete(Player player, int tier, boolean fully) {
+		int totalChallenges = 0, numCompleted = 0;
+		for(Challenge challenge : Challenge.getChallengesByDifficulty(tier)) {
+			totalChallenges++;
+			if(challenge.hasCompleted(player)) {
+				numCompleted++;
+			}
+		}
+		return (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteTier(totalChallenges)) - numCompleted;
+	}
+	
+	public static final boolean hasCompletedTier(Player player, int tier, boolean fully) {
+		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers || tier < 0) {
+			return true;
+		}
+		List<Challenge> previousTiers = Challenge.getChallengesByDifficulty(tier);
+		int totalChallenges = 0, numCompleted = 0;
+		for(Challenge challenge : previousTiers) {
+			totalChallenges++;
+			if(challenge.hasCompleted(player)) {
+				numCompleted++;
+			}
+		}
+		return numCompleted >= (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteTier(totalChallenges));
+	}
+	
+	public static final boolean hasUnlockedNextTier(Player player, int tier) {
+		return hasCompletedTier(player, tier, false);
+	}
+	
+	/** @param player The player whose challenge icon will be returned
 	 * @return The icon representing this challenge */
-	public final ItemStack getIcon(boolean completed) {
+	public final ItemStack getIconFor(Player player) {
+		Island island = Island.getMainIslandFor(player);//Island.getIslandPlayerIsUsing(player, true);
+		if(island == null) {
+			return this.getLockedIcon();
+		}
+		if(this.difficulty > 0 && Challenge.challengeDifficultiesAreHalfPercentagedTiers) {
+			if(!hasUnlockedNextTier(player, this.difficulty - 1)) {
+				return this.getLockedIcon();
+			}
+		}
+		return this.getIcon(this.getTimesCompleted(player));//this.hasCompleted(player));
+	}
+	
+	/** @param player The player to use
+	 * @return The number of times that the given player has completed this
+	 *         challenge */
+	public final int getTimesCompleted(Player player) {
+		Island island = Island.getMainIslandFor(player);
+		if(island == null) {
+			return -1;
+		}
+		return island.getNumTimesChallengeCompletedBy(player.getUniqueId(), this.name);
+	}
+	
+	/** @param timesCompleted The number of times that the player viewing the
+	 *            challenge screen has completed this challenge
+	 * @return The icon representing this challenge */
+	public final ItemStack getIcon(int timesCompleted) {
+		boolean completed = timesCompleted >= 1;
+		@SuppressWarnings("deprecation")
 		ItemStack icon = new ItemStack(this.icon, 1, this.iconData);
 		ItemMeta meta = Main.server.getItemFactory().getItemMeta(this.icon);
 		meta.setDisplayName(this.getDisplayName());
@@ -452,14 +1121,90 @@ public class Challenge {
 		for(String line : this.description) {
 			lore.add(ChatColor.WHITE + ChatColor.translateAlternateColorCodes('&', line));
 		}
+		
+		lore.add(this.repeatable ? ChatColor.AQUA.toString().concat("Times completed: ").concat(ChatColor.GOLD.toString()).concat(Integer.toString(timesCompleted)) : ChatColor.DARK_GRAY.toString().concat("Not repeatable."));
+		
+		//==
 		lore.add(ChatColor.GRAY + "Requirements:");
-		for(String requirement : this.getRequirements()) {
-			lore.add(requirement);
+		if(this.repeatable) {
+			String[] firstRequirements = this.getRequirements(CompletionType.FIRST);
+			String[] repeatRequirements = this.getRequirements(CompletionType.REPEAT);
+			boolean firstRequirementsAreSameAsRepeat = repeatRequirements.length == firstRequirements.length;
+			if(firstRequirementsAreSameAsRepeat) {
+				for(int i = 1; i < repeatRequirements.length; i++) {//skip the first line; they're always different between FIRST and REPEAT
+					if(i == 0) {
+						continue;
+					}
+					firstRequirementsAreSameAsRepeat &= repeatRequirements[i].equals(firstRequirements[i]);
+				}
+			}
+			if(!firstRequirementsAreSameAsRepeat) {
+				for(String requirement : firstRequirements) {
+					lore.add(requirement);
+				}
+				for(String requirement : repeatRequirements) {
+					lore.add(requirement);
+				}
+			} else {
+				for(int i = 1; i < firstRequirements.length; i++) {
+					if(i == 0) {
+						continue;
+					}
+					lore.add(firstRequirements[i]);
+				}
+			}
+		} else {
+			String[] firstRequirements = this.getRequirements(CompletionType.FIRST);
+			for(int i = 1; i < firstRequirements.length; i++) {
+				if(i == 0) {
+					continue;
+				}
+				lore.add(firstRequirements[i]);
+			}
 		}
+		//==
+		
+		//==
 		lore.add(ChatColor.GOLD + "Rewards:");
-		for(String reward : this.getRewards()) {
-			lore.add(reward);
+		if(this.repeatable) {
+			String[] firstRewards = this.getRewards(CompletionType.FIRST);
+			String[] repeatRewards = this.getRewards(CompletionType.REPEAT);
+			boolean firstRewardsAreSameAsRepeat = repeatRewards.length == firstRewards.length;
+			if(firstRewardsAreSameAsRepeat) {
+				for(int i = 1; i < repeatRewards.length; i++) {//skip the first line; they're always different between FIRST and REPEAT
+					if(i == 0) {
+						continue;
+					}
+					firstRewardsAreSameAsRepeat &= repeatRewards[i].equals(firstRewards[i]);
+				}
+			}
+			if(!firstRewardsAreSameAsRepeat) {
+				for(String reward : firstRewards) {
+					lore.add(reward);
+				}
+				for(String reward : repeatRewards) {
+					lore.add(reward);
+				}
+			} else {
+				for(int i = 1; i < firstRewards.length; i++) {
+					if(i == 0) {
+						continue;
+					}
+					lore.add(firstRewards[i]);
+				}
+			}
+		} else {
+			String[] firstRewards = this.getRewards(CompletionType.FIRST);
+			for(int i = 1; i < firstRewards.length; i++) {
+				if(i == 0) {
+					continue;
+				}
+				lore.add(firstRewards[i]);
+			}
 		}
+		
+		//==
+		
 		meta.setLore(lore);
 		meta.addItemFlags(ItemFlag.values());//lol, even though all I needed to put here was ItemFlag.HIDE_ENCHANTS
 		if(completed) {
@@ -472,58 +1217,78 @@ public class Challenge {
 		return icon;
 	}
 	
-	/** @return An array containing the requirements of this challenge */
-	public final String[] getRequirements() {
-		String[] requirements = new String[0];
-		if(this.requiredLevel > 0x0.0p0) {
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return An array containing the requirements of this challenge */
+	public final String[] getRequirements(CompletionType type) {
+		ChallengeInfo info = type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards;
+		String[] requirements = new String[1];
+		requirements[0] = ChatColor.GRAY + (type == CompletionType.FIRST ? "[First time completion]" : "[Repeated completions]");
+		if(!info.requiredChallenges.isEmpty()) {
 			requirements = Arrays.copyOf(requirements, requirements.length + 1);
-			requirements[requirements.length - 1] = ChatColor.BLUE + "An island level of " + ChatColor.GOLD + Main.limitDecimalToNumberOfPlaces(this.requiredLevel, 2) + ChatColor.BLUE + " or higher";
+			requirements[requirements.length - 1] = ChatColor.DARK_GRAY + "Required Challenges:";
+			for(Challenge challenge : info.requiredChallenges) {
+				requirements = Arrays.copyOf(requirements, requirements.length + 1);
+				requirements[requirements.length - 1] = ChatColor.GRAY + "* " + ChatColor.WHITE + challenge.getDisplayName();
+			}
 		}
-		if(this.requiredItems.length > 0) {
+		if(info.requiredLevel > 0x0.0p0) {
+			requirements = Arrays.copyOf(requirements, requirements.length + 1);
+			requirements[requirements.length - 1] = ChatColor.BLUE + "An island level of " + ChatColor.GOLD + Main.limitDecimalToNumberOfPlaces(info.requiredLevel, 2) + ChatColor.BLUE + " or higher";
+		}
+		if(info.requiredItems.length > 0) {
 			requirements = Arrays.copyOf(requirements, requirements.length + 1);
 			requirements[requirements.length - 1] = ChatColor.GREEN + "Items:";
-			for(ItemStack item : this.requiredItems) {
+			for(ItemStack item : info.requiredItems) {
 				requirements = Arrays.copyOf(requirements, requirements.length + 1);
 				requirements[requirements.length - 1] = ChatColor.GRAY + "* " + ChatColor.WHITE + Main.getItemName(item) + ChatColor.WHITE + " x" + item.getAmount();
 			}
 		}
-		if(this.requiredBlocks.length > 0) {
+		if(info.requiredBlocks.length > 0) {
 			requirements = Arrays.copyOf(requirements, requirements.length + 1);
 			requirements[requirements.length - 1] = ChatColor.LIGHT_PURPLE + "Blocks(placed or held):";
-			for(ItemStack item : this.requiredBlocks) {
+			for(ItemStack item : info.requiredBlocks) {
 				requirements = Arrays.copyOf(requirements, requirements.length + 1);
 				requirements[requirements.length - 1] = ChatColor.GRAY + "* " + ChatColor.WHITE + Main.getItemName(item) + ChatColor.WHITE + " x" + item.getAmount();
 			}
 		}
-		if(requirements.length == 0) {
-			requirements = new String[] {ChatColor.GRAY + "None."};
+		if(requirements.length == 1) {
+			requirements = new String[] {requirements[0], ChatColor.GRAY + "None."};
 		}
 		return requirements;
 	}
 	
-	/** @return An array containing the rewards for completing this challenge */
-	public final String[] getRewards() {
-		String[] rewards = new String[0];
-		if(this.rewardItems.length > 0) {
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return An array containing the rewards for completing this challenge */
+	public final String[] getRewards(CompletionType type) {
+		ChallengeInfo info = type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards;
+		String[] rewards = new String[1];
+		rewards[0] = ChatColor.GOLD + (type == CompletionType.FIRST ? "[First time completion]" : "[Repeated competions]");
+		if(info.rewardItems.length > 0) {
 			rewards = Arrays.copyOf(rewards, rewards.length + 1);
 			rewards[rewards.length - 1] = ChatColor.GREEN + "Items:";
-			for(ItemStack item : this.rewardItems) {
+			for(ItemStack item : info.rewardItems) {
 				rewards = Arrays.copyOf(rewards, rewards.length + 1);
 				rewards[rewards.length - 1] = ChatColor.DARK_GREEN + "* " + ChatColor.WHITE + Main.getItemName(item) + ChatColor.WHITE + " x" + item.getAmount();
 			}
 		}
-		if(this.rewardExp > 0x0.0p0F) {
+		if(info.rewardExp > 0x0.0p0F) {
 			rewards = Arrays.copyOf(rewards, rewards.length + 1);
-			rewards[rewards.length - 1] = ChatColor.YELLOW + "Experience: " + ChatColor.GREEN + Main.limitDecimalToNumberOfPlaces(this.rewardExp, 2);
+			rewards[rewards.length - 1] = ChatColor.YELLOW + "Experience: " + ChatColor.GREEN + Main.limitDecimalToNumberOfPlaces(info.rewardExp, 2);
 		}
-		if(this.rewardMoney > 0x0.0p0) {
+		if(info.rewardMoney > 0x0.0p0) {
 			rewards = Arrays.copyOf(rewards, rewards.length + 1);
-			rewards[rewards.length - 1] = ChatColor.GREEN + "Money: " + ChatColor.GOLD + Main.limitDecimalToNumberOfPlaces(this.rewardMoney, 2);
+			rewards[rewards.length - 1] = ChatColor.GREEN + "Money: " + ChatColor.GOLD + Main.limitDecimalToNumberOfPlaces(info.rewardMoney, 2);
 		}
-		if(this.rewardEffects.length > 0) {
+		if(info.rewardEffects.length > 0) {
 			rewards = Arrays.copyOf(rewards, rewards.length + 1);
 			rewards[rewards.length - 1] = ChatColor.GREEN + "Temporary effects:";
-			for(PotionEffect effect : this.rewardEffects) {
+			for(PotionEffect effect : info.rewardEffects) {
 				String name = Main.capitalizeFirstLetterOfEachWord(effect.getType().getName().toLowerCase(), '_', ' ');
 				String duration = Main.getLengthOfTime(effect.getDuration() * 50L);
 				String amplifier = Main.toRomanNumerals(effect.getAmplifier() + 1);
@@ -531,16 +1296,20 @@ public class Challenge {
 				rewards[rewards.length - 1] = ChatColor.DARK_GREEN + "* " + ChatColor.YELLOW + name + " " + ChatColor.GOLD + amplifier + ChatColor.DARK_GREEN + " for " + ChatColor.YELLOW + duration;
 			}
 		}
-		if(this.rewardPermissions.length > 0) {
+		if(info.rewardPermissions.length > 0) {
 			rewards = Arrays.copyOf(rewards, rewards.length + 1);
 			rewards[rewards.length - 1] = ChatColor.GOLD + "Permissions:";
-			for(String permission : this.rewardPermissions) {
+			for(String permission : info.rewardPermissions) {
 				rewards = Arrays.copyOf(rewards, rewards.length + 1);
 				rewards[rewards.length - 1] = ChatColor.YELLOW + "\"" + ChatColor.WHITE + permission + ChatColor.YELLOW + "\"";
 			}
 		}
-		if(rewards.length == 0) {
-			rewards = new String[] {ChatColor.BLUE + "None."};
+		if(info.rewardCommands.length > 0) {
+			rewards = Arrays.copyOf(rewards, rewards.length + 1);
+			rewards[rewards.length - 1] = ChatColor.GOLD + "Commands to be executed: " + ChatColor.AQUA + Integer.toString(info.rewardCommands.length) + ChatColor.GOLD + " Command" + (info.rewardCommands.length == 1 ? "" : "s");
+		}
+		if(rewards.length == 1) {
+			rewards = new String[] {rewards[0], ChatColor.BLUE + "None."};
 		}
 		return rewards;
 	}
@@ -580,22 +1349,34 @@ public class Challenge {
 		}
 	}
 	
-	/** @return The items required to be in a player's inventory in order to
+	/** @param type
+	 * @return The items required to be in a player's inventory in order to
 	 *         complete this challenge */
-	public final ItemStack[] getRequiredItems() {
-		return safeCopy(this.requiredItems);
+	public final ItemStack[] getRequiredItems(CompletionType type) {
+		type.name();
+		return safeCopy((type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).requiredItems);
 	}
 	
-	/** @return Whether or not this challenge will take the required items from
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return Whether or not this challenge will take the required items from
 	 *         a player's inventory */
-	public final boolean doesTakeItems() {
-		return this.takeItems;
+	public final boolean doesTakeItems(CompletionType type) {
+		type.name();
+		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).takeItems;
 	}
 	
-	/** @return The island level that a player is required to be at in order
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The island level that a player is required to be at in order
 	 *         to complete this challenge */
-	public final double getRequiredLevel() {
-		return this.requiredLevel;
+	public final double getRequiredLevel(CompletionType type) {
+		type.name();
+		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).requiredLevel;
 	}
 	
 	/** @return Whether or not this challenge is repeatable */
@@ -603,52 +1384,106 @@ public class Challenge {
 		return this.repeatable;
 	}
 	
-	/** @return The blocks required to be placed on a player's island in order
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The blocks required to be placed on a player's island in order
 	 *         to complete this challenge */
-	public final ItemStack[] getRequiredBlocks() {
-		return safeCopy(this.requiredBlocks);
+	public final ItemStack[] getRequiredBlocks(CompletionType type) {
+		type.name();
+		return safeCopy((type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).requiredBlocks);
 	}
 	
-	/** @return The items that will be awarded to a player that completes this
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The items that will be awarded to a player that completes this
 	 *         challenge */
-	public final ItemStack[] getRewardItems() {
-		return safeCopy(this.rewardItems);
+	public final ItemStack[] getRewardItems(CompletionType type) {
+		type.name();
+		return safeCopy((type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).rewardItems);
 	}
 	
-	/** @return The money that will be awarded to a player that completes this
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The money that will be awarded to a player that completes this
 	 *         challenge */
-	public final double getRewardMoney() {
-		return this.rewardMoney;
+	public final double getRewardMoney(CompletionType type) {
+		type.name();
+		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).rewardMoney;
 	}
 	
-	/** @return The amount of experience that will be awarded to a player when
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The amount of experience that will be awarded to a player when
 	 *         they complete this challenge */
-	public final float getRewardExperience() {
-		return this.rewardExp - Math.round(this.rewardExp);
+	public final float getRewardExperience(CompletionType type) {
+		type.name();
+		ChallengeInfo info = type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards;
+		return info.rewardExp;// - Math.round(info.rewardExp);
 	}
 	
-	/** @return The special permissions that will be awarded to the player that
+	/** @param type The challenge completion type(information about the
+	 *            challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The special permissions that will be awarded to the player that
 	 *         completes this challenge */
-	public final String[] getRewardPermissions() {
-		return this.rewardPermissions;
+	public final String[] getRewardPermissions(CompletionType type) {
+		type.name();
+		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).rewardPermissions;
+	}
+	
+	/** Command replacement strings:<br>
+	 * <tt>%UUID% - the player's UUID<br>
+	 * %NAME% - the player's plain text name<br>
+	 * %LOCATION% - the player's current location(replacement example: "world=worldName,x=X,y=Y,z=Z,yaw=Yaw,pitch=Pitch"; without quotes)<br>
+	 * %GAMEMODE% - the player's current gamemode<br>
+	 * %REPEATABLE% - this challenge's repeatable state(replacement example: One of: "true", "false"; without quotes)<br>
+	 * %ISLANDID% - the island that the player is currently on's ID(replacement example: "1_2"; without quotes)<br>
+	 * %ISLANDSPAWN% - the island that the player is currently on's spawn location(replacement example: see location above)<br>
+	 * %ISLANDWARP% - the island that the player is currently on's warp location(replacement example: see location above)<br>
+	 * %ISLANDLOC% - the island that the player is currently on's starting obsidian location(replacement example: see location above)<br>
+	 * %ISLANDHOME% - the player's home location for the island that the player is currently on(replacement example: see location above)<br>
+	 * </tt>
+	 * Add <tt>MAIN</tt> onto the front of an island variable name to
+	 * distinguish between the player's main island(the first island that<br>
+	 * the player created[or joined if the player owns no islands]) and the
+	 * island that the player is currently playing on(may be the same as the<br>
+	 * main island if the player isn't on a secondary island).
+	 * 
+	 * 
+	 * @param type The challenge completion type(information about the challenge
+	 *            when completing it the first time, or repeating the challenge
+	 *            after already having completed it)
+	 * @return The special commands that will be executed via the server console
+	 *         when a player completes this challenge */
+	public final String[] getRewardCommands(CompletionType type) {
+		type.name();
+		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).rewardCommands;
 	}
 	
 	/** @param player The player to check
 	 * @return A list containing the items that this player needs to get before
 	 *         they can complete this challenge */
 	public final List<ItemStack> getRemainingRequiredItems(Player player) {
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		ArrayList<ItemStack> requiredItems = new ArrayList<>();
-		for(ItemStack required : this.requiredItems) {
+		for(ItemStack required : info.requiredItems) {
 			requiredItems.add(new ItemStack(required));
 		}
 		if(requiredItems.isEmpty()) {
 			return requiredItems;
 		}
-		if(player.getName().equals("Brian_Entei")) {
-			player.sendMessage("RequiredItems: " + requiredItems.size());
-			for(ItemStack required : requiredItems) {
-				player.sendMessage(Main.getItemName(required) + " x" + required.getAmount());
-			}
+		Main.sendDebugMsg(player, "RequiredItems: " + requiredItems.size());
+		for(ItemStack required : requiredItems) {
+			Main.sendDebugMsg(player, Main.getItemName(required) + " x" + required.getAmount());
 		}
 		for(ItemStack item : player.getInventory().getContents()) {
 			if(item == null) {
@@ -658,41 +1493,33 @@ public class Challenge {
 				if(Main.isSameType(required, item)) {
 					int newAmt = required.getAmount() - item.getAmount();
 					if(newAmt > 0) {
-						if(player.getName().equals("Brian_Entei")) {
-							player.sendMessage("Reduced requirement " + Main.getItemName(required) + " from x" + required.getAmount() + " to x" + newAmt + " and item amount: " + item.getAmount());
-						}
+						Main.sendDebugMsg(player, "Reduced requirement " + Main.getItemName(required) + " from x" + required.getAmount() + " to x" + newAmt + " and item amount: " + item.getAmount());
 						required.setAmount(newAmt);
 						break;
 					}
 					requiredItems.remove(required);
-					if(player.getName().equals("Brian_Entei")) {
-						player.sendMessage("Removed requirement " + Main.getItemName(required) + " x" + required.getAmount() + " and item amount: " + item.getAmount());
-					}
+					Main.sendDebugMsg(player, "Removed requirement " + Main.getItemName(required) + " x" + required.getAmount() + " and item amount: " + item.getAmount());
 					break;
 				}
 			}
 		}
-		if(player.getName().equals("Brian_Entei")) {
-			player.sendMessage("RequiredItems: " + requiredItems.size());
-			for(ItemStack required : requiredItems) {
-				player.sendMessage(Main.getItemName(required) + " x" + required.getAmount());
-			}
+		Main.sendDebugMsg(player, "RequiredItems: " + requiredItems.size());
+		for(ItemStack required : requiredItems) {
+			Main.sendDebugMsg(player, Main.getItemName(required) + " x" + required.getAmount());
 		}
 		for(ItemStack required : new ArrayList<>(requiredItems)) {
 			if(required.getAmount() <= 0) {
 				requiredItems.remove(required);
 			}
 		}
-		if(player.getName().equals("Brian_Entei")) {
-			player.sendMessage("RequiredItems: " + requiredItems.size());
-			for(ItemStack required : requiredItems) {
-				player.sendMessage(Main.getItemName(required) + " x" + required.getAmount());
-			}
+		Main.sendDebugMsg(player, "RequiredItems: " + requiredItems.size());
+		for(ItemStack required : requiredItems) {
+			Main.sendDebugMsg(player, Main.getItemName(required) + " x" + required.getAmount());
 		}
-		/*player.sendMessage("Items left: " + requiredItems.size());
+		Main.sendDebugMsg(player, "Items left: " + requiredItems.size());
 		for(ItemStack requirement : requiredItems) {
-			player.sendMessage(requirement.getType().name().toLowerCase().replace('_', ' ') + "x" + requirement.getAmount());
-		}*/
+			Main.sendDebugMsg(player, requirement.getType().name().toLowerCase().replace('_', ' ') + "x" + requirement.getAmount());
+		}
 		return requiredItems;
 	}
 	
@@ -707,8 +1534,9 @@ public class Challenge {
 	 * @return A list of the blocks that this player still has to obtain before
 	 *         they can complete this challenge */
 	public final List<ItemStack> getRemainingRequiredBlocks(Player player) {
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		ArrayList<ItemStack> requiredBlocks = new ArrayList<>();
-		for(ItemStack required : this.requiredBlocks) {
+		for(ItemStack required : info.requiredBlocks) {
 			requiredBlocks.add(required);
 		}
 		if(requiredBlocks.isEmpty()) {
@@ -736,7 +1564,7 @@ public class Challenge {
 			}
 		}
 		if(!requiredBlocks.isEmpty()) {
-			Island island = Island.getIslandFor(player);
+			Island island = Island.getMainIslandFor(player);
 			if(island != null) {
 				int[] bounds = island.getBounds();
 				for(int x = bounds[0]; x <= bounds[2]; x++) {
@@ -783,16 +1611,18 @@ public class Challenge {
 	 * @return The remaining amount of level(s) that this player needs to obtain
 	 *         before they can complete this challenge */
 	public double getRemainingRequiredLevel(Player player) {
-		Island island = Island.getIslandFor(player);
-		return this.hasRequiredLevel(player) ? 0 : (island == null ? -1 : this.requiredLevel - island.getLevel());
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
+		Island island = Island.getMainIslandFor(player);
+		return this.hasRequiredLevel(player) ? 0 : (island == null ? -1 : info.requiredLevel - island.getLevel());
 	}
 	
 	/** @param player The player whose Island will be checked
 	 * @return Whether or not the player's Island is of the required level */
 	public boolean hasRequiredLevel(Player player) {
-		Island island = Island.getIslandFor(player);
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
+		Island island = Island.getMainIslandFor(player);
 		if(island != null) {
-			return this.requiredLevel > 0x0.0p0 ? island.getLevel() >= this.requiredLevel : true;
+			return info.requiredLevel > 0x0.0p0 ? island.getLevel() >= info.requiredLevel : true;
 		}
 		return false;
 	}
@@ -801,28 +1631,37 @@ public class Challenge {
 	 * @return Whether or not the given player has completed this challenge
 	 *         before */
 	public final boolean hasCompleted(Player player) {
-		Island island = Island.getIslandFor(player);
+		Island island = Island.getMainIslandFor(player);
 		return island == null ? false : island.hasMemberCompleted(player, this);
 	}
 	
 	/** @param player The player to check
 	 * @return Whether or not the player can complete this challenge */
 	public boolean canComplete(Player player) {
-		Island island = Island.getIslandFor(player);
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
+		Island island = Island.getMainIslandFor(player);
 		boolean repeatCheck = this.isRepeatable() ? true : !island.hasMemberCompleted(player, this);
 		boolean world = Island.isInSkyworld(player);
 		boolean items = this.hasRequiredItems(player);
 		boolean blocks = this.hasRequiredBlocks(player);
 		boolean level = this.hasRequiredLevel(player);
-		//player.sendMessage("Island: " + (island != null) + " world: " + world + " items: " + items + " blocks: " + blocks + " level: " + level + " ");
-		return island != null && repeatCheck && world && items && blocks && level;
+		boolean requiredChallenges = true;
+		for(Challenge requirement : info.requiredChallenges) {
+			if(!island.hasMemberCompleted(player, requirement)) {
+				requiredChallenges = false;
+				break;
+			}
+		}
+		Main.sendDebugMsg(player, "Island: " + (island != null) + " world: " + world + " items: " + items + " blocks: " + blocks + " level: " + level + " requiredChallenges: " + requiredChallenges + " ");
+		return island != null && repeatCheck && world && items && blocks && level && requiredChallenges;
 	}
 	
 	/** @param player The player whose items matching this challenge's required
 	 *            items will be taken */
 	public final void takeItems(Player player) {
-		if(this.takeItems) {
-			ItemStack[] required = safeCopy(this.requiredItems);
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
+		if(info.takeItems) {
+			ItemStack[] required = safeCopy(info.requiredItems);
 			for(int index = 0; index < required.length; index++) {
 				ItemStack take = required[index];
 				if(take == null) {
@@ -861,12 +1700,24 @@ public class Challenge {
 	 *         challenge */
 	public boolean complete(Player player) {
 		if(this.canComplete(player)) {
+			int tier = this.difficulty;
+			boolean completedTier = Challenge.hasCompletedTier(player, tier, false);
 			if(!ChallengeCompleteEvent.fire(player, this).isCancelled()) {
 				this.takeItems(player);
 				this.reward(player);
-				Island island = Island.getIslandFor(player);
+				Island island = Island.getMainIslandFor(player);
 				if(island != null) {
 					island.setCompleted(player, this);
+				}
+				
+				Main.sendDebugMsg(player, "completedTier_Before: ".concat(Boolean.toString(completedTier)));
+				if(!completedTier && Challenge.hasCompletedTier(player, tier, false)) {
+					Main.sendDebugMsg(player, "completedTier_After: true");
+					ChallengeTierCompleteEvent completeTierEvent = new ChallengeTierCompleteEvent(this, !Challenge.hasCompletedTier(player, tier, true), player);
+					Main.pluginMgr.callEvent(completeTierEvent);
+					Main.sendDebugMsg(player, "called event ChallengeTierCompleteEvent!");
+				} else {
+					Main.sendDebugMsg(player, "completedTier_After: false");
 				}
 			}
 			return true;
@@ -877,8 +1728,9 @@ public class Challenge {
 	/** @param player The player who will receive all of this challenge's
 	 *            rewards */
 	public final void reward(Player player) {
-		if(this.rewardExp > 0x0.0p0F) {
-			float exp = player.getExp() + this.getRewardExperience();
+		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
+		if(info.rewardExp > 0x0.0p0F) {
+			/*float exp = player.getExp() + this.getRewardExperience(info == this.firstRewards ? CompletionType.FIRST : CompletionType.REPEAT);
 			while(true) {
 				if(exp > 1.0F) {
 					exp -= 1.0F;
@@ -887,29 +1739,66 @@ public class Challenge {
 					player.setExp(exp);
 					break;
 				}
-			}
+			}*/
+			player.giveExp(Math.round(info.rewardExp));
 		}
-		for(PotionEffect effect : this.rewardEffects) {
+		for(PotionEffect effect : info.rewardEffects) {
 			PotionEffect current = player.getPotionEffect(effect.getType());
 			if(current != null && current.getAmplifier() <= effect.getAmplifier()) {
 				effect = new PotionEffect(effect.getType(), Math.min(effect.getDuration() + current.getDuration(), 24000), effect.getAmplifier(), effect.isAmbient(), effect.hasParticles());
 			}
 			player.addPotionEffect(effect, true);
 		}
-		if(Main.isVaultEnabled() && this.rewardPermissions.length > 0) {
+		if(Main.isVaultEnabled() && info.rewardPermissions.length > 0) {
 			net.milkbowl.vault.permission.Permission perm = VaultHandler.getPermissionsHandler();
 			if(perm != null) {
-				for(String permission : this.rewardPermissions) {
+				for(String permission : info.rewardPermissions) {
 					perm.playerAdd(GeneratorMain.getSkyworld().getName(), player, permission);
 				}
 			}
 		}
-		Main.giveItemToPlayer(player, this.rewardItems);
-		if(Main.isVaultEnabled() && this.rewardMoney > 0x0.0p0) {
+		Main.giveItemToPlayer(player, info.rewardItems);
+		if(Main.isVaultEnabled() && info.rewardMoney > 0x0.0p0) {
 			net.milkbowl.vault.economy.Economy eco = VaultHandler.getEconomyHandler();
 			if(eco != null) {
-				eco.depositPlayer(player, GeneratorMain.getSkyworld().getName(), this.rewardMoney);
+				eco.depositPlayer(player, GeneratorMain.getSkyworld().getName(), info.rewardMoney);
 			}
+		}
+		
+		Island island = Island.getIslandContaining(player.getLocation());
+		Island mainIsland = Island.getMainIslandFor(player);
+		island = island == null || !island.isMember(player) ? mainIsland : island;
+		for(String cmd : info.rewardCommands) {
+			cmd = cmd.replace("%UUID", player.getUniqueId().toString())//
+					.replace("%NAME%", player.getName())//
+					.replace("%DISPLAYNAME%", player.getDisplayName())//
+					.replace("%LOCATION%", Main.locationToString(player.getLocation(), 8, true, true).replace(", ", ","))//
+					.replace("%GAMEMODE%", player.getGameMode().name())//
+					.replace("%REPEATABLE%", Boolean.toString(this.repeatable))//
+					.replace("%ISLANDID%", island == null ? "null" : island.getID());//
+			if(island != null) {
+				cmd = cmd.replace("%ISLANDSPAWN%", Main.locationToString(island.getSpawnLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%ISLANDWARP%", Main.locationToString(island.getWarpLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%ISLANDLOC%", Main.locationToString(island.getLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%ISLANDHOME%", Main.locationToString(island.getHomeFor(player.getUniqueId()), 8, true, true).replace(", ", ","));
+			} else {
+				cmd = cmd.replace("%ISLANDSPAWN%", "null")//
+						.replace("%ISLANDWARP%", "null")//
+						.replace("%ISLANDLOC%", "null")//
+						.replace("%ISLANDHOME%", "null");
+			}
+			if(mainIsland != null) {
+				cmd = cmd.replace("%MAINISLANDSPAWN%", Main.locationToString(mainIsland.getSpawnLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%MAINISLANDWARP%", Main.locationToString(mainIsland.getWarpLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%MAINISLANDLOC%", Main.locationToString(mainIsland.getLocation(), 8, true, true).replace(", ", ","))//
+						.replace("%MAINISLANDHOME%", Main.locationToString(mainIsland.getHomeFor(player.getUniqueId()), 8, true, true).replace(", ", ","));
+			} else {
+				cmd = cmd.replace("%MAINISLANDSPAWN%", "null")//
+						.replace("%MAINISLANDWARP%", "null")//
+						.replace("%MAINISLANDLOC%", "null")//
+						.replace("%MAINISLANDHOME%", "null");
+			}
+			Main.server.dispatchCommand(Main.console, cmd);
 		}
 	}
 	

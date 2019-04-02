@@ -1,4 +1,8 @@
 island:
+  allowedWorldsForIslandChests:
+  - dungeonworld
+  - dungeonworld_nether
+  - dungeonworld_the_end
   gui-lore:
     uncreated:
       normal-nearspawn:

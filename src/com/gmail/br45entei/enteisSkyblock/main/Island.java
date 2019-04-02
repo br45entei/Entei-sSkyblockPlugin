@@ -61,6 +61,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Evoker;
 import org.bukkit.entity.EvokerFangs;
+import org.bukkit.entity.Fish;
 import org.bukkit.entity.Ghast;
 import org.bukkit.entity.Giant;
 import org.bukkit.entity.Horse;
@@ -270,6 +271,7 @@ public final class Island {
 		if(islandsFailed > 0) {
 			Main.console.sendMessage(ChatColor.GOLD + "Number of islands that failed to load: " + ChatColor.WHITE + Integer.toString(islandsFailed) + ChatColor.GOLD + ".");
 		}
+		updateAllIslands();
 	}
 	
 	/** Searches for and returns a list of all orphaned islands(Islands with
@@ -295,8 +297,13 @@ public final class Island {
 	}
 	
 	/** Updates all loaded Islands' WorldGuard regions */
-	public static final void updateAllRegions() {
+	public static final void updateAllIslands() {
 		for(Island island : islands) {
+			if(island.getOwner() == null) {
+				island.deleteCompletely();
+				Main.getPluginLogger().info("Deleted orphaned island at ".concat(island.getID()).concat("."));
+				continue;
+			}
 			island.update();
 		}
 	}
@@ -414,7 +421,15 @@ public final class Island {
 		int lastZ = z;
 		int dir = 0;//0=right,1=down,2=left,3=up,4=right_check_x_equals_0
 		while(true) {
-			boolean exists = getIfExists(x, z) != null;
+			Island checkIfOrphaned = getIfExists(x, z);
+			if(checkIfOrphaned != null && checkIfOrphaned.owner == null) {
+				int[] id = new int[] {checkIfOrphaned.x, checkIfOrphaned.z};
+				checkIfOrphaned.deleteCompletely();
+				Main.getPluginLogger().info("Deleted orphaned island at ".concat(checkIfOrphaned.getID()).concat("."));
+				checkIfOrphaned = null;
+				return id;
+			}
+			boolean exists = checkIfOrphaned != null;
 			if(exists) {
 				switch(dir) {
 				default:
@@ -457,29 +472,127 @@ public final class Island {
 		}
 	}
 	
+	/*
+	public static final Island getIslandPlayerIsUsing(Player player, boolean playerMustBeAMemberOfIsland, boolean playerMustOwnTheIsland) {
+		Island island = Island.getIslandContaining(player.getLocation());
+		Island mainIsland = Island.getMainIslandFor(player.getUniqueId(), playerMustOwnTheIsland);
+		island = island == null ? mainIsland : island;
+		return (playerMustOwnTheIsland && !island.isOwner(player)) || (playerMustBeAMemberOfIsland && !island.isMember(player)) ? mainIsland : island;
+	}*/
+	
+	/** @param player The player to use
+	 * @param playerMustBeAMemberOfIsland Whether or not the given player must
+	 *            be a member of the returned island(player must not be visiting
+	 *            an island for this to not return <tt><b>null</b></tt>)
+	 * @param playerMustOwnTheIsland Whether or not the given player must own
+	 *            the returned island(player must be visiting an island that
+	 *            they own for this to not return <tt><b>null</b></tt>)
+	 * @return The resulting Island if the above conditions are met,
+	 *         <tt><b>null</b></tt> otherwise */
+	public static final Island getIslandPlayerIsUsing(Player player, boolean playerMustBeAMemberOfIsland, boolean playerMustOwnTheIsland) {
+		Island island = Island.getIslandContaining(player.getLocation());
+		return island == null || ((playerMustOwnTheIsland && !island.isOwner(player)) || (playerMustBeAMemberOfIsland && !island.isMember(player))) ? Island.getMainIslandFor(player.getUniqueId(), playerMustOwnTheIsland) : island;
+	}
+	
 	/** @param player The player whose Island will be searched for
 	 * @return The player's Island, if they were a member of(or owned)
 	 *         one */
-	public static final Island getIslandFor(OfflinePlayer player) {
-		return player == null ? null : getIslandFor(player.getUniqueId());
+	public static final Island getMainIslandFor(OfflinePlayer player) {
+		return player == null ? null : getMainIslandFor(player.getUniqueId(), false);
 	}
 	
 	/** @param player The UUID of the player whose Island will be searched
 	 *            for
+	 * @param onlyIfPlayerOwnsIsland Whether or not an island should only be
+	 *            returned if it is owned by the given player
 	 * @return The player's Island, if they were a member of(or owned)
 	 *         one */
-	public static final Island getIslandFor(UUID player) {
-		for(Island island : islands) {
+	public static final Island getMainIslandFor(UUID player, boolean onlyIfPlayerOwnsIsland) {
+		if(player == null) {
+			return null;
+		}
+		Island potentialMainIsland = null;
+		for(final Island island : islands) {
 			if(island.isTestIsland) {
 				continue;
 			}
-			for(UUID member : island.getMembers()) {
-				if(member.toString().equals(player.toString())) {
+			UUID owner = island.getOwner();
+			if(owner == null) {
+				Main.scheduler.runTaskLater(Main.getPlugin(), () -> {
+					island.deleteCompletely();
+					Main.getPluginLogger().info("Deleted orphaned island at ".concat(island.getID()).concat("."));
+				}, 5L);
+				continue;
+			}
+			if(owner.toString().equals(player.toString())) {
+				potentialMainIsland = potentialMainIsland != null ? potentialMainIsland : island;
+				if(island.isMainIslandFor(player)) {
 					return island;
 				}
 			}
 		}
-		return null;
+		if(potentialMainIsland != null) {
+			potentialMainIsland.setAsMainIslandFor(player);
+		}
+		if(!onlyIfPlayerOwnsIsland) {
+			for(Island island : islands) {
+				if(island.isTestIsland) {
+					continue;
+				}
+				for(UUID member : island.getMembers()) {//XXX Do not use trusted players here.
+					if(member.toString().equals(player.toString())) {
+						return island;
+					}
+				}
+			}
+		}
+		return potentialMainIsland;
+	}
+	
+	/** @param player The player to check
+	 * @return Whether or not the given player owns this Island and has chosen
+	 *         this Island as their main one */
+	public boolean isMainIslandFor(UUID player) {
+		return this.isOwnersMainIsland && this.isOwner(player);
+	}
+	
+	/** @param player The player(who must already own this Island) who has
+	 *            chosen this Island as their main one
+	 * @return This Island */
+	public Island setAsMainIslandFor(UUID player) {
+		this.isOwnersMainIsland = this.isOwner(player) ? true : this.isOwnersMainIsland;
+		return this;
+	}
+	
+	public static final List<Island> getSecondaryIslandsFor(UUID player) {
+		Island mainIsland = getMainIslandFor(player, true);
+		if(mainIsland == null) {
+			return null;
+		}
+		List<Island> list = new ArrayList<>();
+		boolean passedMainIslandInList = false;
+		for(final Island island : islands) {
+			if(island.isTestIsland) {
+				continue;
+			}
+			if(island == mainIsland) {
+				passedMainIslandInList = true;
+				continue;
+			}
+			if(island.getOwner() == null && passedMainIslandInList) {
+				Main.scheduler.runTaskLater(Main.getPlugin(), () -> {
+					island.deleteCompletely();
+					Main.getPluginLogger().info("Deleted orphaned island at ".concat(island.getID()).concat("."));
+				}, 5L);
+				continue;
+			}
+			for(UUID member : island.getMembers()) {
+				if(member.toString().equals(player.toString())) {
+					list.add(island);
+				}
+			}
+		}
+		return list;
 	}
 	
 	/** @return A list containing all of the Islands in use that haven't reached
@@ -501,7 +614,7 @@ public final class Island {
 	 * @return The Island owning the given location, or <b>{@code null}</b> if
 	 *         the given location falls outside of any Island */
 	public static final Island getIslandContaining(Location location) {
-		if(Island.isInSkyworld(location)) {
+		if(Island.isInSkyworld(location) && location.getWorld() != GeneratorMain.getSkyworldTheEnd()) {
 			for(Island island : Island.getAllIslands()) {
 				int[] bounds = island.getBounds();
 				if(location.getBlockX() >= bounds[0] && location.getBlockX() <= bounds[2] && location.getBlockZ() >= bounds[1] && location.getBlockZ() <= bounds[3]) {
@@ -570,7 +683,7 @@ public final class Island {
 	 * @param location The location to use
 	 * @return The location for an Island nearest the given location */
 	public static final Location getIslandLocationNearest(Location location) {
-		if(location.getWorld() != GeneratorMain.getSkyworld()) {
+		if(!Island.isInSkyworld(location) || location.getWorld() == GeneratorMain.getSkyworldTheEnd()) {
 			return null;
 		}
 		if(location.getBlockX() % GeneratorMain.island_Range == 0) {
@@ -850,6 +963,7 @@ public final class Island {
 		case LEGACY_REDSTONE_COMPARATOR_ON:
 		case COMPARATOR:
 		case STONE_BUTTON:
+		case WATER:
 			return true;
 		//$CASES-OMITTED$
 		default:
@@ -1248,6 +1362,9 @@ public final class Island {
 	}
 	
 	protected static final boolean checkBlockFor(Class<? extends LivingEntity> clazz, Block block) {
+		if(Fish.class.isAssignableFrom(clazz)) {
+			return block.getType() == Material.WATER;
+		}
 		if(!canMobSpawnIn(block.getType())) {
 			return false;
 		}
@@ -1339,7 +1456,36 @@ public final class Island {
 	
 	protected final ConcurrentHashMap<String, Location> memberHomes = new ConcurrentHashMap<>();
 	
-	protected final ConcurrentHashMap<String, ConcurrentLinkedDeque<String>> memberCompletedChallenges = new ConcurrentHashMap<>();
+	protected final ConcurrentHashMap<String, ConcurrentHashMap<String, Integer>> memberCompletedChallenges = new ConcurrentHashMap<>();
+	
+	private volatile int netherPortalOrientation = -1;
+	private volatile int netherPortalX = Integer.MIN_VALUE;
+	private volatile int netherPortalY = Integer.MIN_VALUE;
+	private volatile int netherPortalZ = Integer.MIN_VALUE;
+	
+	private boolean isOwnersMainIsland = false;
+	
+	public final Island setUncompleted(OfflinePlayer member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.setUncompleted(member.getUniqueId(), challenge.getName());
+	}
+	
+	/** @param member The member whose given challenge is about to be
+	 *            un-completed
+	 * @param challengeName The name of the challenge that the member will no
+	 *            longer have completed
+	 * @return This Island */
+	public final Island setUncompleted(OfflinePlayer member, String challengeName) {
+		return member == null || challengeName == null || challengeName.trim().isEmpty() ? this : this.setUncompleted(member.getUniqueId(), challengeName);
+	}
+	
+	/** @param member The member whose given challenge is about to be
+	 *            un-completed
+	 * @param challenge The challenge that the member will no longer have
+	 *            completed
+	 * @return This Island */
+	public final Island setUncompleted(UUID member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.setUncompleted(member, challenge.getName());
+	}
 	
 	/** @param member The member who just completed a challenge
 	 * @param challenge The challenge that the member just completed
@@ -1363,21 +1509,50 @@ public final class Island {
 		return member == null || challenge == null ? this : this.setCompleted(member, challenge.getName());
 	}
 	
+	/** @param member The member whose given challenge is about to be
+	 *            un-completed
+	 * @param challengeName The name of the challenge that the member will no
+	 *            longer have completed
+	 * @return This Island */
+	public final Island setUncompleted(UUID member, String challengeName) {
+		if(this.hasMemberCompleted(member, challengeName)) {
+			ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
+			completedChallenges.put(challengeName, Integer.valueOf(-completedChallenges.get(challengeName).intValue()));
+			return this;
+		}
+		/*if(this.isMember(member) && challengeName != null && !challengeName.trim().isEmpty()) {
+			ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
+			if(completedChallenges == null) {
+				completedChallenges = new ConcurrentHashMap<>();
+				put(member, completedChallenges, this.memberCompletedChallenges);
+			}
+			completedChallenges.put(challengeName, Integer.valueOf(0));
+		}*/
+		return this;
+	}
+	
 	/** @param member The member who just completed a challenge
 	 * @param challengeName The name of the challenge that the member just
 	 *            completed
 	 * @return This Island */
 	public final Island setCompleted(UUID member, String challengeName) {
 		if(this.hasMemberCompleted(member, challengeName)) {
+			ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
+			completedChallenges.put(challengeName, Integer.valueOf(completedChallenges.get(challengeName).intValue() + 1));
 			return this;
 		}
 		if(this.isMember(member) && challengeName != null && !challengeName.trim().isEmpty()) {
-			ConcurrentLinkedDeque<String> completedChallenges = get(member, this.memberCompletedChallenges);
+			ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
 			if(completedChallenges == null) {
-				completedChallenges = new ConcurrentLinkedDeque<>();
+				completedChallenges = new ConcurrentHashMap<>();
 				put(member, completedChallenges, this.memberCompletedChallenges);
 			}
-			completedChallenges.add(challengeName);
+			completedChallenges.put(challengeName, Integer.valueOf(1));
+			/*OfflinePlayer player = Main.server.getOfflinePlayer(member);
+			Challenge challenge = Challenge.getChallengeByName(challengeName);
+			if(player.isOnline() && challenge != null) {
+				Main.server.broadcast(ChatColor.WHITE + player.getPlayer().getDisplayName() + ChatColor.RESET + ChatColor.GREEN + " has just completed the \"" + ChatColor.WHITE + challenge.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\" challenge!", Server.BROADCAST_CHANNEL_USERS);
+			}*/
 		}
 		return this;
 	}
@@ -1418,18 +1593,164 @@ public final class Island {
 		if(Challenge.getChallengeByName(challengeName) == null) {
 			return false;
 		}
-		ConcurrentLinkedDeque<String> completedChallenges = get(member, this.memberCompletedChallenges);
+		ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
 		if(completedChallenges == null) {
-			completedChallenges = new ConcurrentLinkedDeque<>();
+			completedChallenges = new ConcurrentHashMap<>();
 			put(member, completedChallenges, this.memberCompletedChallenges);
 			return false;
 		}
-		for(String completedChallenge : completedChallenges) {
-			if(completedChallenge.equalsIgnoreCase(challengeName)) {
+		for(Entry<String, Integer> completedChallenge : completedChallenges.entrySet()) {
+			if(completedChallenge.getKey().equalsIgnoreCase(challengeName) && completedChallenge.getValue().intValue() >= 1) {
 				return true;
 			}
 		}
 		return false;
+	}
+	
+	/** @param member The member in question
+	 * @param challenge The challenge in question
+	 * @return The total number of times that the given player has completed the
+	 *         given challenge, or <tt>-1</tt> if either parameter is
+	 *         <tt><b>null</b></tt>, the player isn't a member of this island */
+	public final int getNumTimesChallengeCompletedBy(OfflinePlayer member, Challenge challenge) {
+		return member == null || challenge == null ? -1 : this.getNumTimesChallengeCompletedBy(member.getUniqueId(), challenge.getName());
+	}
+	
+	/** @param member The member in question
+	 * @param challengeName The challenge in question
+	 * @return The total number of times that the given player has completed the
+	 *         given challenge, or <tt>-1</tt> if either parameter is
+	 *         <tt><b>null</b></tt>, the player isn't a member of this island,
+	 *         or the given challenge name is invalid */
+	public final int getNumTimesChallengeCompletedBy(OfflinePlayer member, String challengeName) {
+		return member == null || challengeName == null || challengeName.trim().isEmpty() ? -1 : this.getNumTimesChallengeCompletedBy(member.getUniqueId(), challengeName);
+	}
+	
+	/** @param member The member in question
+	 * @param challenge The challenge in question
+	 * @return The total number of times that the given player has completed the
+	 *         given challenge, or <tt>-1</tt> if either parameter is
+	 *         <tt><b>null</b></tt>, the player isn't a member of this island */
+	public final int getNumTimesChallengeCompletedBy(UUID member, Challenge challenge) {
+		return member == null || challenge == null ? -1 : this.getNumTimesChallengeCompletedBy(member, challenge.getName());
+	}
+	
+	/** @param member The member in question
+	 * @param challengeName The challenge in question
+	 * @return The total number of times that the given player has completed the
+	 *         given challenge, or <tt>-1</tt> if either parameter is
+	 *         <tt><b>null</b></tt>, the player isn't a member of this island,
+	 *         or the given challenge name is invalid */
+	public final int getNumTimesChallengeCompletedBy(UUID member, String challengeName) {
+		if(!this.isMember(member)) {
+			put(member, null, this.memberCompletedChallenges);
+			return -1;
+		}
+		if(Challenge.getChallengeByName(challengeName) == null) {
+			return -1;
+		}
+		ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
+		if(completedChallenges == null) {
+			completedChallenges = new ConcurrentHashMap<>();
+			put(member, completedChallenges, this.memberCompletedChallenges);
+			return 0;
+		}
+		for(Entry<String, Integer> completedChallenge : completedChallenges.entrySet()) {
+			if(completedChallenge.getKey().equalsIgnoreCase(challengeName)) {
+				return completedChallenge.getValue().intValue();
+			}
+		}
+		return 0;
+	}
+	
+	/** Adds 1 to the total number of times that the given player has completed
+	 * the given challenge on this Island.
+	 * 
+	 * @param member The member in question
+	 * @param challenge The challenge in question
+	 * @return This Island */
+	public final Island incrementNumTimesChallengeCompletedBy(OfflinePlayer member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.incrementNumTimesChallengeCompletedBy(member.getUniqueId(), challenge.getName());
+	}
+	
+	public final Island incrementNumTimesChallengeCompletedBy(OfflinePlayer member, String challengeName) {
+		return member == null || challengeName == null || challengeName.trim().isEmpty() ? this : this.incrementNumTimesChallengeCompletedBy(member.getUniqueId(), challengeName);
+	}
+	
+	public final Island incrementNumTimesChallengeCompletedBy(UUID member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.incrementNumTimesChallengeCompletedBy(member, challenge.getName());
+	}
+	
+	public final Island incrementNumTimesChallengeCompletedBy(UUID member, String challengeName) {
+		return this.setNumTimesChallengeCompletedBy(member, challengeName, this.getNumTimesChallengeCompletedBy(member, challengeName) + 1);
+	}
+	
+	public final Island decrementNumTimesChallengeCompletedBy(OfflinePlayer member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.decrementNumTimesChallengeCompletedBy(member.getUniqueId(), challenge.getName());
+	}
+	
+	public final Island decrementNumTimesChallengeCompletedBy(OfflinePlayer member, String challengeName) {
+		return member == null || challengeName == null || challengeName.trim().isEmpty() ? this : this.decrementNumTimesChallengeCompletedBy(member.getUniqueId(), challengeName);
+	}
+	
+	public final Island decrementNumTimesChallengeCompletedBy(UUID member, Challenge challenge) {
+		return member == null || challenge == null ? this : this.decrementNumTimesChallengeCompletedBy(member, challenge.getName());
+	}
+	
+	/** @param member
+	 * @param challengeName
+	 * @return */
+	public final Island decrementNumTimesChallengeCompletedBy(UUID member, String challengeName) {
+		return this.setNumTimesChallengeCompletedBy(member, challengeName, this.getNumTimesChallengeCompletedBy(member, challengeName) - 1);
+	}
+	
+	/** @param member The member in question
+	 * @param challenge The challenge in question
+	 * @param timesCompleted The new number of times that the given player will
+	 *            have completed the given challenge
+	 * @return This Island */
+	public final Island setNumTimesChallengeCompletedBy(OfflinePlayer member, Challenge challenge, int timesCompleted) {
+		return member == null || challenge == null ? this : this.setNumTimesChallengeCompletedBy(member.getUniqueId(), challenge.getName(), timesCompleted);
+	}
+	
+	/** @param member The member in question
+	 * @param challengeName The name of the challenge in question
+	 * @param timesCompleted The new number of times that the given player will
+	 *            have completed the given challenge
+	 * @return This Island */
+	public final Island setNumTimesChallengeCompletedBy(OfflinePlayer member, String challengeName, int timesCompleted) {
+		return member == null || challengeName == null || challengeName.trim().isEmpty() ? this : this.setNumTimesChallengeCompletedBy(member.getUniqueId(), challengeName, timesCompleted);
+	}
+	
+	/** @param member The member in question
+	 * @param challenge The challenge in question
+	 * @param timesCompleted The new number of times that the given player will
+	 *            have completed the given challenge
+	 * @return This Island */
+	public final Island setNumTimesChallengeCompletedBy(UUID member, Challenge challenge, int timesCompleted) {
+		return member == null || challenge == null ? this : this.setNumTimesChallengeCompletedBy(member, challenge.getName(), timesCompleted);
+	}
+	
+	/** @param member The member in question
+	 * @param challengeName The name of the challenge in question
+	 * @param timesCompleted The new number of times that the given player will
+	 *            have completed the given challenge
+	 * @return This Island */
+	public final Island setNumTimesChallengeCompletedBy(UUID member, String challengeName, int timesCompleted) {
+		if(!this.isMember(member)) {
+			put(member, null, this.memberCompletedChallenges);
+			return this;
+		}
+		if(Challenge.getChallengeByName(challengeName) == null) {
+			return this;
+		}
+		ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
+		if(completedChallenges == null) {
+			completedChallenges = new ConcurrentHashMap<>();
+			put(member, completedChallenges, this.memberCompletedChallenges);
+		}
+		completedChallenges.put(challengeName, Integer.valueOf(timesCompleted));
+		return this;
 	}
 	
 	/** @param member The member whose home will be returned
@@ -1462,11 +1783,6 @@ public final class Island {
 		return this;
 	}
 	
-	private volatile int netherPortalOrientation = -1;
-	private volatile int netherPortalX = Integer.MIN_VALUE;
-	private volatile int netherPortalY = Integer.MIN_VALUE;
-	private volatile int netherPortalZ = Integer.MIN_VALUE;
-	
 	/** @return The nether portal's orientation(0 = x-axis-aligned, 1 =
 	 *         z-axis-aligned, -1 = indeterminate) */
 	public final int getNetherPortalOrientation() {
@@ -1489,7 +1805,7 @@ public final class Island {
 		if(this.netherPortalX == Integer.MIN_VALUE || this.netherPortalY == Integer.MIN_VALUE || this.netherPortalZ == Integer.MIN_VALUE) {
 			return null;
 		}
-		return Main.getNetherPortal(new Location(GeneratorMain.getSkyworld(), this.netherPortalX, this.netherPortalY, this.netherPortalZ));
+		return Main.getNetherPortal(new Location(GeneratorMain.getSkyworld(), this.netherPortalX, this.netherPortalY, this.netherPortalZ), true);
 	}
 	
 	/** @return The location of this Island's nether portal in the nether,
@@ -1500,7 +1816,7 @@ public final class Island {
 		for(int x = bounds[0]; x <= bounds[2]; x++) {
 			for(int y = 0; y < GeneratorMain.getSkyworldNether().getMaxHeight(); y++) {
 				for(int z = bounds[1]; z <= bounds[3]; z++) {
-					Location portal = Main.getNetherPortal(new Location(GeneratorMain.getSkyworldNether(), x, y, z));
+					Location portal = Main.getNetherPortal(new Location(GeneratorMain.getSkyworldNether(), x, y, z), false);
 					if(portal != null) {
 						return portal;
 					}
@@ -1572,6 +1888,7 @@ public final class Island {
 		this.netherPortalX = copy.netherPortalX;
 		this.netherPortalY = copy.netherPortalY;
 		this.netherPortalZ = copy.netherPortalZ;
+		this.isOwnersMainIsland = copy.isOwnersMainIsland;//hrmm. well, this method is really only used for saving and loading, so ehh...
 	}
 	
 	/** Copies the given island onto this one
@@ -1637,7 +1954,7 @@ public final class Island {
 	 * @return The value stored in the map, or <b><code>null</code></b> if no
 	 *         value was found */
 	public static final <T> T get(UUID key, Map<String, T> map) {
-		return map.get(key.toString());
+		return key == null ? null : map.get(key.toString());
 	}
 	
 	/** @param <T> The type of the value to put
@@ -1647,6 +1964,9 @@ public final class Island {
 	 * @return The value previously stored in the map with the key, or
 	 *         <b><code>null</code></b> if there was no value */
 	public static final <T> T put(UUID key, T value, Map<String, T> map) {
+		if(key == null) {
+			return null;
+		}
 		if(value == null) {
 			return map.remove(key.toString());
 		}
@@ -1659,8 +1979,8 @@ public final class Island {
 	public final boolean save() {
 		Main.console.sendMessage("Debug: Saving island " + this.getID() + " to file \"" + this.getSaveFile().getAbsolutePath() + "\"...");
 		try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(this.getSaveFile()), StandardCharsets.UTF_8), true)) {
-			out.println("creationTime=" + Long.toString(this.createTime, 10));
-			out.println("lastRestartTime=" + Long.toString(this.lastRestartTime, 10));
+			out.println("creationTime=" + Long.toString(this.createTime == 0 ? System.currentTimeMillis() : this.createTime));
+			out.println("lastRestartTime=" + Long.toString(this.lastRestartTime));
 			out.println("isTestIsland=" + Boolean.toString(this.isTestIsland));
 			out.println("islandType=" + ((this.islandType == null || this.islandType.isEmpty()) ? "normal" : this.islandType));
 			out.println("owner=" + (this.owner == null ? "" : this.owner.toString()));
@@ -1707,16 +2027,18 @@ public final class Island {
 			i = 1;
 			size = this.getMembers().size();
 			for(UUID member : this.getMembers()) {
-				ConcurrentLinkedDeque<String> memberChallenges = get(member, this.memberCompletedChallenges);
+				ConcurrentHashMap<String, Integer> memberChallenges = get(member, this.memberCompletedChallenges);
 				if(memberChallenges == null) {
-					memberChallenges = new ConcurrentLinkedDeque<>();
+					memberChallenges = new ConcurrentHashMap<>();
 					put(member, memberChallenges, this.memberCompletedChallenges);
 				}
 				out.print(member.toString() + ":");
 				int j = 1;
 				int _size = memberChallenges.size();
-				for(String challenge : memberChallenges) {
-					out.print(challenge + (j == _size ? "" : "|"));
+				for(Entry<String, Integer> entry : memberChallenges.entrySet()) {
+					String challenge = entry.getKey();
+					Integer timesCompleted = entry.getValue();
+					out.print(challenge + ";" + timesCompleted.toString() + (j == _size ? "" : "|"));
 					j++;
 				}
 				out.print(i == size ? "" : ",");
@@ -1909,6 +2231,9 @@ public final class Island {
 		System.out.println("Scale factor of 46: " + scaleFactor(46));
 		System.out.println("Scale factor of 1: " + scaleFactor(1));
 		System.out.println("Scale factor of 0: " + scaleFactor(0));
+		
+		System.out.println(Main.limitDecimalToNumberOfPlaces(calculateLevel(5000.0, 653.0, 101 * 101, 0), 8));
+		System.out.println(Main.limitDecimalToNumberOfPlaces(calculateLevel(0.01, 653.0, 1, 0), 8));
 	}
 	
 	/** Loads this Island's data from disk.
@@ -1943,9 +2268,9 @@ public final class Island {
 					continue;
 				}
 				if(pname.equalsIgnoreCase("creationTime")) {
-					dupe.createTime = Long.parseLong(value, 10);
+					dupe.createTime = Long.parseLong(value);
 				} else if(pname.equalsIgnoreCase("lastRestartTime")) {
-					dupe.lastRestartTime = Long.parseLong(value, 10);
+					dupe.lastRestartTime = Long.parseLong(value);
 				} else if(pname.equalsIgnoreCase("isTestIsland")) {
 					dupe.isTestIsland = Boolean.parseBoolean(value);
 				} else if(pname.equalsIgnoreCase("islandType")) {
@@ -2023,9 +2348,9 @@ public final class Island {
 							String memberStr = split[0];
 							if(Main.isUUID(memberStr)) {
 								UUID member = UUID.fromString(memberStr);
-								ConcurrentLinkedDeque<String> completedChallenges = get(member, dupe.memberCompletedChallenges);
+								ConcurrentHashMap<String, Integer> completedChallenges = get(member, dupe.memberCompletedChallenges);
 								if(completedChallenges == null) {
-									completedChallenges = new ConcurrentLinkedDeque<>();
+									completedChallenges = new ConcurrentHashMap<>();
 									put(member, completedChallenges, dupe.memberCompletedChallenges);
 								}
 								if(split.length > 1) {
@@ -2033,7 +2358,19 @@ public final class Island {
 										if(challengeName.trim().isEmpty()) {
 											continue;
 										}
-										completedChallenges.add(challengeName);
+										Integer completedCount = Integer.valueOf(1);
+										if(challengeName.contains(";")) {
+											String[] timesCompleted = challengeName.split(Pattern.quote(";"));
+											if(timesCompleted.length >= 2) {
+												challengeName = timesCompleted[0];
+												if(Main.isInt(timesCompleted[1])) {
+													completedCount = Integer.valueOf(timesCompleted[1]);
+												}
+											} else {
+												continue;
+											}
+										}
+										completedChallenges.put(challengeName, completedCount);
 									}
 								}
 							}
@@ -2162,7 +2499,7 @@ public final class Island {
 				}
 			}
 		}
-		if(Main.getPlugin().getMaterialConfig().getBoolean("checkEntities", true)) {
+		if(Main.checkEntities) {
 			for(Entity entity : GeneratorMain.getSkyworld().getNearbyEntities(this.getLocation(), GeneratorMain.island_Range / 2, GeneratorMain.getSkyworld().getMaxHeight() / 2, GeneratorMain.island_Range / 2)) {
 				if(entity instanceof Player) {
 					Player player = (Player) entity;
@@ -2184,12 +2521,26 @@ public final class Island {
 			}
 		}
 		for(Entry<Material, Long> entry : map.entrySet()) {
-			long count = entry.getValue().longValue();
-			this.level += Main.getLevelFor(entry.getKey()) * scaleFactor(count);
+			if(entry.getKey() == Material.AIR) {
+				continue;
+			}
+			level = Island.calculateLevel(entry.getKey(), entry.getValue().longValue(), level);
 		}
 		this.level = level;
 		this.lastLevelCalculation = System.currentTimeMillis();
 		return level;
+	}
+	
+	public final Island sendDebugMsg(String message) {
+		for(UUID member : this.getMembers()) {
+			OfflinePlayer player = Main.server.getOfflinePlayer(member);
+			if(player.isOnline()) {
+				if(player.getPlayer().hasPermission("skyblock.dev") && Main.getDebugMode(player.getPlayer())) {
+					player.getPlayer().sendMessage(ChatColor.BLUE + "[Island] [DEBUG] " + ChatColor.WHITE + message);
+				}
+			}
+		}
+		return this;
 	}
 	
 	/** @return Whether or not non-member players are prohibited from
@@ -2231,7 +2582,7 @@ public final class Island {
 					+ ";\nloc.getBlockX(" + (loc == null ? Double.NaN : loc.getBlockX()) + ") <= bounds[2]:" + (loc == null ? false : loc.getBlockX() <= bounds[2])//
 					+ ";\nloc.getBlockZ(" + (loc == null ? Double.NaN : loc.getBlockZ()) + ") <= bounds[3]:" + (loc == null ? false : loc.getBlockZ() <= bounds[3]) + ";");
 		}*/
-		return loc != null && Island.isInSkyworld(loc) && loc.getBlockX() >= bounds[0] && loc.getBlockZ() >= bounds[1] && loc.getBlockX() <= bounds[2] && loc.getBlockZ() <= bounds[3];
+		return loc != null && loc.getWorld() == GeneratorMain.getSkyworld() && loc.getBlockX() >= bounds[0] && loc.getBlockZ() >= bounds[1] && loc.getBlockX() <= bounds[2] && loc.getBlockZ() <= bounds[3];
 	}
 	
 	/** @param player The player to check
@@ -2489,8 +2840,17 @@ public final class Island {
 	 * @param member The player to add to this Island
 	 * @return Whether or not the player was added */
 	public final boolean addMember(UUID member) {
-		if(this.members.size() >= this.memberLimit) {
+		return this.addMember(member, false);
+	}
+	
+	public final boolean addMember(UUID member, boolean force) {
+		if(!force && this.members.size() >= this.memberLimit) {
 			return false;
+		}
+		for(UUID check : this.members) {
+			if(check.toString().equals(member.toString())) {
+				return true;
+			}
 		}
 		if(member != this.owner) {
 			this.members.add(member);
@@ -2758,6 +3118,14 @@ public final class Island {
 	/** @param owner The UUID of the player who will own this Island
 	 * @return This Island */
 	public final Island setOwner(UUID owner) {
+		if(owner == null) {
+			String oldOwner = this.getOwnerNamePlain();
+			this.owner = null;
+			this.ownerName = "no one";
+			this.isTestIsland = false;
+			Main.getPluginLogger().info("The island at ".concat(this.getID()).concat(" is now orphaned. It used to belong to \"").concat(oldOwner == null ? "<no one>" : oldOwner).concat("\"."));
+			return this;
+		}
 		OfflinePlayer player = Main.server.getOfflinePlayer(owner);
 		return this.setOwner(player);
 	}
@@ -2768,6 +3136,7 @@ public final class Island {
 		if((this.owner == null ? "" : this.owner.toString()).equals(player.getUniqueId().toString())) {
 			return this.update();
 		}
+		this.isTestIsland = false;
 		UUID oldOwner = this.owner;
 		this.owner = player.getUniqueId();
 		this.ownerName = player.getName();
@@ -2779,6 +3148,12 @@ public final class Island {
 			player.getPlayer().setBedSpawnLocation(this.getSpawnLocation(), true);
 		}
 		return this.update();
+	}
+	
+	@Deprecated
+	public final Island setOwnerName(String name) {
+		this.ownerName = name == null ? this.ownerName : name;
+		return this;
 	}
 	
 	/** @param owner The UUID of the player who will own this Island
@@ -3020,7 +3395,7 @@ public final class Island {
 		}
 	}
 	
-	/** @return This Island's bounds.
+	/** @return This Island's bounds. All values are inclusive.
 	 *         <b>{@code [minX, minZ, maxX, maxZ]}</b> */
 	public final int[] getBounds() {
 		if(GeneratorMain.enableIslandBorders) {
@@ -3062,7 +3437,8 @@ public final class Island {
 		for(UUID invited : this.memberInvitations.keySet()) {
 			this.hasInvitationFor(invited);
 		}
-		return this.updateRegion(Environment.NORMAL).updateRegion(Environment.NETHER).updateRegion(Environment.THE_END);
+		Island.getMainIslandFor(this.getOwner(), true);//(Updates island main owner states)
+		return this;//this.updateRegion(Environment.NORMAL).updateRegion(Environment.NETHER).updateRegion(Environment.THE_END);
 	}
 	
 	private final Island deleteAllRegions() {
@@ -3139,8 +3515,8 @@ public final class Island {
 				int minZ = bounds[1];
 				int maxX = bounds[2];
 				int maxZ = bounds[3];
-				com.sk89q.worldedit.math.BlockVector3 min = com.sk89q.worldedit.math.BlockVector3.at(minX, 0, minZ);
-				com.sk89q.worldedit.math.BlockVector3 max = com.sk89q.worldedit.math.BlockVector3.at(maxX, world.getMaxHeight(), maxZ);
+				com.sk89q.worldedit.BlockVector min = new com.sk89q.worldedit.BlockVector(minX, 0, minZ);
+				com.sk89q.worldedit.BlockVector max = new com.sk89q.worldedit.BlockVector(maxX, world.getMaxHeight(), maxZ);
 				region = new com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion(this.getID(), min, max);
 				rm.addRegion(region);
 			}
@@ -3252,12 +3628,16 @@ public final class Island {
 	/** Deletes all of the blocks contained within this Island, then
 	 * generates a new one from the configured schematic.
 	 * 
+	 * @param teleportMembersToIsland Whether or not the members of this island
+	 *            should be teleported to the island's spawn location(only if
+	 *            they're in one of the skyworlds)
+	 * 
 	 * @return This Island */
-	public final Island generateSchematicIsland() {
-		return this.generateSchematicIsland(true, false);
+	public final Island generateSchematicIsland(boolean teleportMembersToIsland) {
+		return this.generateSchematicIsland(true, false, teleportMembersToIsland);
 	}
 	
-	public final Island generateSchematicIsland(boolean deleteBlocks, boolean restoreBiome) {
+	public final Island generateSchematicIsland(boolean deleteBlocks, boolean restoreBiome, final boolean teleportMembersToIsland) {
 		if(this.isWithinSpawnArea()) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
@@ -3277,27 +3657,81 @@ public final class Island {
 			}
 			if(schem.exists()) {
 				if(WorldEditUtils.pasteSchematicFromFile(world, schem, this.getLocation().toVector())) {
-					if(GeneratorMain.overwrite_schematic_chest_items) {
-						Location location = this.getLocation().add(GeneratorMain.schematic_chest_offsetX, GeneratorMain.schematic_chest_offsetY, GeneratorMain.schematic_chest_offsetZ);
-						Block block = location.getBlock();
-						if(block != null && block.getState() instanceof Chest) {
+					Location location = this.getLocation().add(GeneratorMain.schematic_chest_offsetX, GeneratorMain.schematic_chest_offsetY, GeneratorMain.schematic_chest_offsetZ);
+					Block block = location.getBlock();
+					final int[] tid = {-1, 0, 120};//20 * 6 = 120; Six second maximum wait time for FastAsyncWorldEdit to finish pasting the schematic
+					final ConcurrentLinkedDeque<String> teleportedPlayers = new ConcurrentLinkedDeque<>();
+					final boolean[] teleportPlayersArray = new boolean[] {teleportMembersToIsland};
+					final boolean[] taskDisabled = {false};
+					final Runnable task = () -> {
+						if(taskDisabled[0] || tid[1] >= tid[2]) {
+							Main.scheduler.cancelTask(tid[0]);
+							taskDisabled[0] = true;
+							return;
+						}
+						if(block.getState() instanceof Chest) {
 							Chest chest = (Chest) block.getState();
-							chest.getInventory().clear();
-							chest.update(true, true);
-							setChestContents(chest.getBlockInventory());
-							setChestContents(chest.getInventory());
-						} else {
+							if(GeneratorMain.overwrite_schematic_chest_items) {
+								chest.getInventory().clear();
+								chest.update(true, true);
+								setChestContents(chest.getBlockInventory());
+								setChestContents(chest.getInventory());
+								taskDisabled[0] = true;
+							}
+							if(!taskDisabled[0]) {
+								Main.scheduler.cancelTask(tid[0]);
+								taskDisabled[0] = true;
+							}
+						} else if(GeneratorMain.overwrite_schematic_chest_items && tid[1] >= tid[2]) {
 							Main.plugin.getLogger().warning("\n"//
 									.concat(" /!\\  Failed to locate the starting chest for schematic island at (").concat(this.getLocation().toVector().toString()).concat(")!\n")//
 									.concat("/___\\ The island probably won't have any starting items!"));
-							Main.server.broadcast(ChatColor.RED + "[Entei's Skyblock] Failed to locate the starting chest for schematic island at (".concat(this.getLocation().toVector().toString()).concat(")!"), Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
-							Main.server.broadcast(ChatColor.RED + "[Entei's Skyblock] The newly generated island won't have any starting items!", Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
-							Main.server.broadcast(ChatColor.GREEN + "[Entei's Skyblock] You have permission to remedy this issue. Please teleport to the island using \"/iw ".concat(this.getOwnerNamePlain()).concat("\" and then locate and look at the starting chest, and then type \"/dev regenChest\"."), "skyblock.admin");
+							Main.server.broadcast(ChatColor.RED.toString().concat("[Entei's Skyblock] Failed to locate the starting chest for schematic island at (").concat(this.getLocation().toVector().toString()).concat(")!"), Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
+							Main.server.broadcast(ChatColor.RED.toString().concat("[Entei's Skyblock] The newly generated island won't have any starting items!"), Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
+							Main.server.broadcast(ChatColor.GREEN.toString().concat("[Entei's Skyblock] You have permission to remedy this issue. Please teleport to the island using \"/iw ").concat(this.getOwnerNamePlain()).concat("\", locate and look at the starting chest, then type \"").concat(ChatColor.WHITE.toString()).concat("/dev regenChest").concat(ChatColor.GREEN.toString()).concat("\"."), "skyblock.admin");
 							if(Main.server.getOfflinePlayer(this.getOwner()).isOnline()) {
-								Main.server.getPlayer(this.getOwner()).sendMessage(ChatColor.YELLOW + "[Entei's Skyblock] Failed to generate the starting chest items. Please contact a staff member for assistence if they have not contacted you within 5 minutes.");
+								Main.server.getPlayer(this.getOwner()).sendMessage(ChatColor.YELLOW.toString().concat("[Entei's Skyblock] Failed to generate the starting chest items. Please contact a staff member for assistance if they have not contacted you within 5 minutes."));
+							}
+							if(!taskDisabled[0]) {
+								Main.scheduler.cancelTask(tid[0]);
+								taskDisabled[0] = true;
+							}
+							return;
+						}
+						if(taskDisabled[0] || tid[1] >= tid[2]) {
+							if(teleportPlayersArray[0]) {
+								for(UUID uuid : this.getMembers()) {
+									OfflinePlayer member = Main.server.getOfflinePlayer(uuid);
+									if(member.isOnline() && Island.isInSkyworld(member.getPlayer())) {
+										if(!teleportedPlayers.contains(member.getUniqueId().toString())) {
+											Main.safeTeleport(member.getPlayer(), this.getSpawnLocation());
+											teleportedPlayers.add(member.getUniqueId().toString());
+										}
+									}
+								}
+								teleportPlayersArray[0] = false;
+							}
+							if(!taskDisabled[0]) {
+								Main.scheduler.cancelTask(tid[0]);
+								taskDisabled[0] = true;
+							}
+						}
+						tid[1]++;
+					};
+					if(block.getState() instanceof Chest) {//Schematic was pasted really quickly(or plain old WorldEdit was used)
+						tid[1] = tid[2];
+						task.run();
+						return this;
+					}
+					if(teleportMembersToIsland) {
+						for(UUID uuid : this.getMembers()) {
+							OfflinePlayer member = Main.server.getOfflinePlayer(uuid);
+							if(member.isOnline() && Island.isInSkyworld(member.getPlayer())) {
+								member.getPlayer().sendMessage(ChatColor.GREEN.toString().concat("Your new island at ").concat(this.getID()).concat(" is currently being generated! When it finishes, you will be automatically teleported to it."));
 							}
 						}
 					}
+					Main.scheduler.runTaskTimer(Main.getPlugin(), task, 0L, 5L);//Start the task immediately(delay = 0), and repeat the task to check for the chest once every 5 ticks, or every 1/4 of a second(5 * 4 = 20; 20 ticks = 1 second)
 					return this;
 				}
 			} else {
@@ -3322,7 +3756,17 @@ public final class Island {
 		if(!GeneratorMain.enableIslandBorders) {
 			Main.plugin.getLogger().warning("       Island bridge generation is turned off. Since the schematic failed to paste, the above island may not have any bridges if the schematic is supposed to contain them.");
 		}
-		return this.generateIsland();
+		this.generateIsland();
+		this.islandType = "schematic";
+		if(teleportMembersToIsland) {
+			for(UUID uuid : this.getMembers()) {
+				OfflinePlayer member = Main.server.getOfflinePlayer(uuid);
+				if(member.isOnline() && this.isPlayerOnIsland(member.getPlayer())) {
+					Main.safeTeleport(member.getPlayer(), this.getSpawnLocation());
+				}
+			}
+		}
+		return this;
 	}
 	
 	/** Deletes all of the blocks contained within this Island, then
@@ -3349,12 +3793,12 @@ public final class Island {
 		world.getBlockAt(X, GeneratorMain.island_Height + 2, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 3, Z).setType(Material.SAND, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 4, Z).setType(Material.DIRT, false);
-		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, true);
-		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, true);
-		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, true);
-		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, true);
-		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, true);
-		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LOG, true);
+		world.getBlockAt(X, GeneratorMain.island_Height + 5, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 6, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 7, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 8, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 9, Z).setType(Material.OAK_LOG, false);
+		world.getBlockAt(X, GeneratorMain.island_Height + 10, Z).setType(Material.OAK_LOG, false);
 		world.getBlockAt(X, GeneratorMain.island_Height + 11, Z).setType(Material.OAK_LEAVES, false);
 		
 		//Leaves Layer 1
@@ -3714,20 +4158,28 @@ public final class Island {
 	}
 	
 	/** @return This Island */
-	public final Island restart() {
-		return this.restart(true);
+	public final Island restart(boolean teleportMembersToIsland) {
+		return this.restart(true, teleportMembersToIsland);
 	}
 	
-	public final Island restart(boolean wipeMembersInventories) {
-		return this.restart(wipeMembersInventories, true, false);
+	public final Island restart(boolean wipeMembersInventories, boolean teleportMembersToIsland) {
+		return this.restart(wipeMembersInventories, true, false, teleportMembersToIsland);
 	}
 	
-	public final Island restart(boolean wipeMembersInventories, boolean deleteBlocks, boolean restoreBiome) {
+	public final Island restart(boolean wipeMembersInventories, boolean deleteBlocks, boolean restoreBiome, boolean teleportMembersToIsland) {
 		if(wipeMembersInventories) {
 			this.wipeMembersInventories(ChatColor.YELLOW + "The island you are a member of has been restarted.");
 		}
 		if(this.islandType == null || this.islandType.trim().isEmpty()) {
 			this.islandType = "normal";
+		}
+		if(teleportMembersToIsland && !this.islandType.equalsIgnoreCase("schematic")) {
+			for(UUID uuid : this.getMembers()) {
+				OfflinePlayer member = Main.server.getOfflinePlayer(uuid);
+				if(member.isOnline() && this.isPlayerOnIsland(member.getPlayer())) {
+					Main.safeTeleport(member.getPlayer(), this.getSpawnLocation());
+				}
+			}
 		}
 		if(this.islandType.equalsIgnoreCase("normal") || (this.islandType.equalsIgnoreCase("schematic") && GeneratorMain.island_schematic.equalsIgnoreCase("none"))) {
 			String type = this.islandType;
@@ -3736,10 +4188,11 @@ public final class Island {
 		} else if(this.islandType.equalsIgnoreCase("square")) {
 			this.generateSquareIsland(deleteBlocks, restoreBiome);
 		} else if(this.islandType.equalsIgnoreCase("schematic")) {
-			this.generateSchematicIsland(deleteBlocks, restoreBiome);
+			this.generateSchematicIsland(deleteBlocks, restoreBiome, teleportMembersToIsland);
 		} else {
 			this.generateIsland(deleteBlocks, restoreBiome);
 		}
+		this.lastRestartTime = System.currentTimeMillis();
 		return this;
 	}
 	
@@ -3794,6 +4247,15 @@ public final class Island {
 	 * 
 	 * @return This Island */
 	public final Island deleteIsland() {
+		this.sendMessage(ChatColor.RED.toString().concat("The island you were a member of(ID: ").concat(this.getID()).concat(") has just been deleted."));
+		for(Player player : this.getPlayersOnIsland()) {
+			if(!this.isMember(player)) {
+				this.sendMessage(ChatColor.RED.toString().concat("The island you were just visiting has been deleted."));
+			}
+			if(!player.isFlying()) {
+				Main.safeTeleport(player.getPlayer(), GeneratorMain.getSkyworldSpawnLocation());
+			}
+		}
 		this.deleteBlocks(true);
 		/*this.deleteAllRegions();
 		islands.remove(this);
@@ -3884,6 +4346,7 @@ public final class Island {
 			} else {
 				this.membersToWipeInv.put(member, msg);
 			}
+			this.memberCompletedChallenges.remove(member.toString());
 		}
 		return this;
 	}
@@ -3919,6 +4382,7 @@ public final class Island {
 				this.membersToWipeInv.put(member, msg);
 			}
 		}
+		this.memberCompletedChallenges.clear();
 		return this.wipeMembersInventoriesIfRequired();
 	}
 	
@@ -4056,9 +4520,22 @@ public final class Island {
 		/*final double n = Main.materialLevelDropOff;
 		double b = Math.log(0.5) / (n - 1.0);
 		return Math.min(count * (Math.pow(e, (b * (count - 1.0)))), n);*/
-		final double n = Main.materialLevelDropOff;
+		final double n = Main.materialLevelDropOff;//5000.0
 		double r = Math.log(n) / Math.log(n / 2.0); //r is log base config/2 of config
 		return Math.pow(count, 1.0 / r); //r root of count
+	}
+	
+	public static final strictfp double calculateLevel(double blockLevel, double divisor, long blockCount, double existingLevel) {
+		double scale = scaleFactor(blockCount);
+		return existingLevel + ((blockLevel / divisor) * scale);
+	}
+	
+	public static final strictfp double calculateLevel(double blockLevel, long blockCount, double existingLevel) {
+		return calculateLevel(blockLevel, Main.getIslandLevelDivisor(), blockCount, existingLevel);
+	}
+	
+	public static final strictfp double calculateLevel(Material material, long blockCount, double existingLevel) {
+		return calculateLevel(Main.getLevelFor(material), Main.getIslandLevelDivisor(), blockCount, existingLevel);
 	}
 	
 	/** @param block The block to count
@@ -4070,8 +4547,18 @@ public final class Island {
 		}
 		double check = Main.getLevelFor(block.getType());
 		if(check < 0x0.0p0) {
-			@SuppressWarnings("deprecation")
-			String name = Main.getItemName(new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData())));
+			ItemStack item;
+			try {
+				@SuppressWarnings("deprecation")
+				ItemStack iKnowItsDeprecatedShutUp = new ItemStack(block.getType(), 1, (short) 0, Byte.valueOf(block.getData()));
+				item = iKnowItsDeprecatedShutUp;
+			} catch(IllegalArgumentException ex) {
+				@SuppressWarnings("deprecation")
+				ItemStack iKnowItsDeprecatedShutUp = new ItemStack(block.getType(), 1, (short) 0);
+				item = iKnowItsDeprecatedShutUp;
+			}
+			
+			String name = Main.getItemName(item);
 			Main.console.sendMessage("Found illegal block on skyworld island: " + name + " (" + block.getLocation().toVector() + ")");
 		}
 		map.put(block.getType(), Long.valueOf(current.longValue() + 1));

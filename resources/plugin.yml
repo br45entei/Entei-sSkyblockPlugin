@@ -12,6 +12,10 @@ api-version: 1.13
 main: com.gmail.br45entei.enteisSkyblock.main.Main
 
 commands:
+  enteisskyblock:
+    usage: "/enteisskyblock [version|help|reload|save|damageTest] [...]"
+    description: "View plugin version information or reload/save the configuration files"
+    aliases: [esb]
   island:
     description: "The main island command"
     usage: "Type /is help to view usages."

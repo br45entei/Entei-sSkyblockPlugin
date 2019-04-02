@@ -17,7 +17,7 @@ public abstract class ChallengeEvent extends PlayerEvent {
 	public ChallengeEvent(Challenge challenge, Player who) {
 		super(who);
 		this.challenge = challenge;
-		this.island = Island.getIslandFor(who);
+		this.island = Island.getMainIslandFor(who);
 	}
 	
 	/** @return The challenge that is involved in this event */

@@ -205,8 +205,12 @@ public abstract class InventoryGUI implements Listener {
 		return gui;
 	}
 	
+	public static final File getPerPlayerInventoriesSaveFolder() {
+		return new File(Main.plugin.getDataFolder().getAbsolutePath().concat(File.separator).concat("Inventories"));
+	}
+	
 	private static final void load(UUID player, InventoryGUI gui) {
-		File folder = new File(Main.plugin.getDataFolder().getAbsolutePath().concat(File.separator).concat("Inventories"));
+		File folder = getPerPlayerInventoriesSaveFolder();
 		if(!folder.exists()) {
 			folder.mkdirs();
 			save(player, gui);
@@ -233,10 +237,11 @@ public abstract class InventoryGUI implements Listener {
 		for(int i = 0; i < inventory.getSize(); i++) {
 			gui.setSlotIcon(i, inventory.getItem(i));
 		}
+		gui.updateInventory();
 	}
 	
 	private static final void save(UUID player, InventoryGUI gui) {
-		File folder = new File(Main.plugin.getDataFolder().getAbsolutePath().concat(File.separator).concat("Inventories"));
+		File folder = getPerPlayerInventoriesSaveFolder();
 		if(!folder.exists()) {
 			folder.mkdirs();
 		}
@@ -249,11 +254,30 @@ public abstract class InventoryGUI implements Listener {
 			e.printStackTrace();
 			return;
 		}
+		gui.updateInventory();
+	}
+	
+	public static final void loadPlayersInventory(OfflinePlayer player) {
+		loadPlayersInventory(player.getUniqueId());
+	}
+	
+	public static final void loadPlayersInventory(UUID player) {
+		File folder = getPerPlayerInventoriesSaveFolder();
+		File file = new File(folder, player.toString().concat(".inv"));
+		if(file.isFile()) {
+			InventoryGUI gui = getStorageChestForPlayer(player);
+			load(player, gui);
+		}
+	}
+	
+	public static final void savePlayersInventory(UUID player) {
+		InventoryGUI gui = getStorageChestForPlayer(player);
+		save(player, gui);
 	}
 	
 	/** Load all per-player inventories from file. */
 	public static final void loadPerPlayerInventories() {
-		File folder = new File(Main.plugin.getDataFolder().getAbsolutePath().concat(File.separator).concat("Inventories"));
+		File folder = getPerPlayerInventoriesSaveFolder();
 		if(!folder.exists()) {
 			folder.mkdirs();
 			return;
@@ -468,10 +492,7 @@ public abstract class InventoryGUI implements Listener {
 		return this;
 	}
 	
-	/** @return The Inventory representing this InventoryGUI's contents. The
-	 *         same Inventory will be returned each time this method is called,
-	 *         and is updated to reflect the contents of this InventoryGUI. */
-	public Inventory open() {
+	public void updateInventory() {
 		if(this.inventory == null) {
 			InventoryOwner owner = new InventoryOwner(this);
 			this.inventory = Bukkit.getServer().createInventory(owner, this.getSize(), this.title);
@@ -485,6 +506,23 @@ public abstract class InventoryGUI implements Listener {
 			}
 			this.inventory.setItem(slot, entry.getValue());
 		}
+	}
+	
+	public void updateFromInventory(Inventory inv) {
+		inv.toString();
+		for(int i = 0; i < inv.getSize(); i++) {
+			this.setSlotIcon(i, inv.getItem(i));
+		}
+		if(this.inventory != null && inv != this.inventory) {
+			this.updateInventory();
+		}
+	}
+	
+	/** @return The Inventory representing this InventoryGUI's contents. The
+	 *         same Inventory will be returned each time this method is called,
+	 *         and is updated to reflect the contents of this InventoryGUI. */
+	public Inventory open() {
+		this.updateInventory();
 		return this.inventory;
 	}
 	
@@ -682,6 +720,7 @@ public abstract class InventoryGUI implements Listener {
 	 * @return Whether or not the InventoryView's top inventory is a Storage
 	 *         Chest GUI that was opened before this plugin was unloaded and
 	 *         reloaded */
+	@SuppressWarnings("deprecation")//Why are inventory.getTitle() and inventory.getName() deprecated? Dumb.
 	public static final boolean isOldChestView(InventoryView view) {
 		Inventory inv = view.getTopInventory();
 		if(inv.getTitle().equals(ChatColor.GOLD + "Storage Chest") && inv.getSize() == 54) {
@@ -785,7 +824,7 @@ public abstract class InventoryGUI implements Listener {
 	 *            applied.
 	 *            Alternatively, scheduling a task using
 	 *            {@link BukkitScheduler#runTask(
-	 * 			Plugin, Runnable)}, which would execute the task on the next
+	 *            Plugin, Runnable)}, which would execute the task on the next
 	 *            tick, would
 	 *            work as well. */
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
@@ -812,9 +851,10 @@ public abstract class InventoryGUI implements Listener {
 		if(top && !gui.allowEditing) {
 			event.setCancelled(true);
 		}
-		Bukkit.getScheduler().scheduleSyncDelayedTask(gui.plugin, () -> {
+		Bukkit.getScheduler().runTaskLater(gui.plugin, () -> {
 			//if(event.getRawSlot() < event.getView().getTopInventory().getSize() && gui.getSlotIcon(event.getRawSlot(), false) != null) {
 			if(event.getRawSlot() < event.getView().getTopInventory().getSize() && gui.getSlotIcon(event.getRawSlot(), false) != null && gui.getSlotIcon(event.getRawSlot(), false).getType() != Material.AIR) {
+				clicker.updateInventory();
 				if(gui.clickAction != null) {
 					gui.clickAction.onClick(event.getSlot(), clicker, inv);
 				} else {
@@ -825,11 +865,9 @@ public abstract class InventoryGUI implements Listener {
 				}
 			}
 			if(top && gui.allowEditing) {
-				for(int i = 0; i < inv.getSize(); i++) {
-					gui.setSlotIcon(i, inv.getItem(i));
-				}
+				gui.updateFromInventory(inv);
 			}
-		});
+		}, 2L);
 	}
 	
 	/** @param event Represents a player related inventory event */
