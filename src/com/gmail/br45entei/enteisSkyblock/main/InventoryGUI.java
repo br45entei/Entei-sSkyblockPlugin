@@ -26,6 +26,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -37,6 +38,7 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.InventoryView;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
@@ -979,6 +981,21 @@ public abstract class InventoryGUI implements Listener {
 		ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.SIGN);
 		meta.setDisplayName(ChatColor.DARK_GREEN + "Main menu");
 		meta.setLore(Arrays.asList(ChatColor.GRAY + "Click to go back to the", ChatColor.GRAY + "main island menu."));
+		mainMenu.setItemMeta(meta);
+		inv.setItem(slot, mainMenu);
+	}
+	
+	public static final void setPageButton(Inventory inv, int slot, boolean nextOrPrev, int currentPage) {
+		int page = currentPage + (nextOrPrev ? 1 : -1);
+		ItemStack mainMenu = new ItemStack(Material.PAPER);
+		ItemMeta meta = Main.server.getItemFactory().getItemMeta(Material.PAPER);
+		meta.setDisplayName(ChatColor.DARK_AQUA.toString().concat(nextOrPrev ? "Next" : "Previous").concat(" page"));
+		meta.setLore(Arrays.asList(//
+				ChatColor.AQUA.toString().concat("Click to go ").concat(!nextOrPrev ? "back " : "").concat("to page ").concat(Integer.toString(page)).concat("."),//
+				ChatColor.AQUA.toString().concat("You are currently on page: ").concat(Integer.toString(currentPage)).concat(".")//
+		));
+		meta.addEnchant(Enchantment.KNOCKBACK, 1, true);
+		meta.addItemFlags(ItemFlag.values());
 		mainMenu.setItemMeta(meta);
 		inv.setItem(slot, mainMenu);
 	}

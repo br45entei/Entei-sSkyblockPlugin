@@ -7,6 +7,7 @@ import com.gmail.br45entei.enteisSkyblock.main.Island;
 import com.gmail.br45entei.enteisSkyblock.main.Main;
 import com.gmail.br45entei.enteisSkyblock.vault.VaultHandler;
 import com.gmail.br45entei.enteisSkyblockGenerator.main.GeneratorMain;
+import com.gmail.br45entei.util.PlayerAdapter;
 import com.gmail.br45entei.util.StringUtil;
 
 import java.io.File;
@@ -15,11 +16,15 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -43,6 +48,76 @@ import org.bukkit.potion.PotionEffectType;
 
 /** @author Brian_Entei */
 public class Challenge {
+	
+	private static volatile YamlConfiguration challengeConfig = null;
+	
+	public static final ConfigurationSection getChallengeConfig() {
+		if(challengeConfig == null) {
+			loadChallengeConfig();
+			if(challengeConfig == null) {
+				return new YamlConfiguration();// :/
+			}
+		}
+		return challengeConfig;
+	}
+	
+	public static final File getChallengeConfigFile() {
+		return new File(Main.getPlugin().getDataFolder(), "challengeConfig.yml");
+	}
+	
+	public static final void saveDifficultyDataTo(ConfigurationSection config, int difficulty, String name, String title, List<String> description) {
+		String key = "difficulty.".concat(Integer.toString(difficulty));
+		ConfigurationSection mem = config.createSection(key);
+		mem.set(key.concat(".name"), name);
+		mem.set(key.concat(".title"), title);
+		mem.set(key.concat(".description"), description);
+	}
+	
+	protected static final YamlConfiguration saveDefaultChallengeConfig(File file) throws IOException {
+		YamlConfiguration config = new YamlConfiguration();
+		config.set("challengeDifficultiesAreHalfPercentagedTiers", Boolean.TRUE);
+		for(int difficulty = 0; difficulty < max_rows; difficulty++) {
+			saveDifficultyDataTo(config, difficulty, getDefaultDifficultyName(difficulty), getDefaultDifficultyTitle(difficulty), getDefaultDifficultyDescription(difficulty));
+		}
+		config.save(file);
+		return config;
+	}
+	
+	public static final boolean saveChallengeConfig() {
+		File file = getChallengeConfigFile();
+		YamlConfiguration config = challengeConfig;
+		if(config == null) {
+			try {
+				challengeConfig = saveDefaultChallengeConfig(file);
+				return true;
+			} catch(IOException ex) {
+				Main.getPluginLogger().log(Level.WARNING, "Unable to save default challenge configuration to file \"".concat(file.getAbsolutePath()).concat("\""), ex);
+				return false;
+			}
+		}
+		try {
+			config.save(file);
+			return true;
+		} catch(IOException ex) {
+			Main.getPluginLogger().log(Level.WARNING, "Unable to save to challenge configuration file \"".concat(file.getAbsolutePath()).concat("\""), ex);
+			return false;
+		}
+	}
+	
+	public static final boolean loadChallengeConfig() {
+		File file = getChallengeConfigFile();
+		if(!file.exists()) {
+			return saveChallengeConfig();
+		}
+		YamlConfiguration config = (challengeConfig = new YamlConfiguration());
+		try {
+			config.load(file);
+			return true;
+		} catch(IOException | InvalidConfigurationException ex) {
+			Main.getPluginLogger().log(Level.WARNING, "Unable to save to challenge configuration file \"".concat(file.getAbsolutePath()).concat("\""), ex);
+			return false;
+		}
+	}
 	
 	/** Class used to implement the /challenge command.
 	 *
@@ -87,6 +162,16 @@ public class Challenge {
 			return onCommand(sender, command, args);
 		}
 		
+		public static final void sendPlayersOnlyMsg(CommandSender sender, String command) {
+			sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+			sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
+			sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+			sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " setComplete {playerName} {challengeName} {timesCompleted}" + ChatColor.YELLOW + "\".");
+			sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " completedTimes {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+			sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+			sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+		}
+		
 		/** Executes the command, returning its success
 		 *
 		 * @param sender Source object which is executing this command
@@ -105,14 +190,112 @@ public class Challenge {
 				}
 			}
 			if(command.equalsIgnoreCase("challenge") || command.equalsIgnoreCase("c")) {
+				if(args.length >= 1 && args[0].equalsIgnoreCase("help")) {
+					
+					return true;
+				}
+				if(args.length >= 1 && args[0].equalsIgnoreCase("page")) {
+					if(user == null) {
+						sendPlayersOnlyMsg(sender, command);
+						return true;
+					}
+					int maxPages = getMaximumChallengeScreenPages(false);
+					if(args.length == 2 && Main.isInt(args[1]) && Integer.parseInt(args[1]) > 0) {
+						int page = Integer.parseInt(args[1]);
+						if(page > maxPages) {
+							sender.sendMessage(ChatColor.YELLOW + "Page " + Integer.toString(page) + " is too big.");
+							sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+							return true;
+						}
+						Challenge.setLastChallengeScreenPageFor(user.getUniqueId(), page - 1, false);
+						user.openInventory(Challenge.getChallengeScreen(user));
+						return true;
+					}
+					sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " page {pageNum}" + ChatColor.YELLOW + "\"; where {pageNum} is a positive integer from 1 to the maximum page count.");
+					sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+					return true;
+				}
+				if(args.length >= 1 && (args[0].equalsIgnoreCase("viewPlayerChallenges") || args[0].equalsIgnoreCase("editPlayerChallenges") || args[0].equalsIgnoreCase("viewPlayer") || args[0].equalsIgnoreCase("editPlayer"))) {
+					if(!sender.hasPermission("skyblock.challenge.manage")) {
+						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+						return true;
+					}
+					if(user == null) {
+						sendPlayersOnlyMsg(sender, command);
+						return true;
+					}
+					if(args.length < 2) {
+						sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " viewPlayerChallenges {playerName}" + ChatColor.YELLOW + "\".");
+						return true;
+					}
+					@SuppressWarnings("deprecation")
+					OfflinePlayer target = Main.server.getOfflinePlayer(args[1]);
+					if(target == null || Island.getMainIslandFor(target.getUniqueId(), false) == null) {
+						sender.sendMessage(ChatColor.YELLOW + "Player \"" + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.YELLOW + "\" does not exist or isn't on any islands.");
+						return true;
+					}
+					if(args.length >= 3) {
+						int maxPages = getMaximumChallengeScreenPages(true);
+						if(args.length == 4 && Main.isInt(args[3]) && Integer.parseInt(args[3]) > 0) {
+							int page = Integer.parseInt(args[3]);
+							if(page > maxPages) {
+								sender.sendMessage(ChatColor.YELLOW + "Page " + Integer.toString(page) + " is too big.");
+								sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+								sender.sendMessage(ChatColor.YELLOW + "Tip: To return to the last page you were viewing quickly, simply omit the page parameters.");
+								return true;
+							}
+							Challenge.setLastChallengeScreenPageFor(user.getUniqueId(), page - 1, true);
+						} else {
+							sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " " + args[0] + "{playerName} page {pageNum}" + ChatColor.YELLOW + "\"; where {pageNum} is a positive integer from 1 to the maximum page count.");
+							sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+							sender.sendMessage(ChatColor.YELLOW + "Tip: To return to the last page you were viewing quickly, simply omit the page parameters.");
+						}
+					}
+					user.openInventory(Challenge.getEditPlayersChallengesScreen(target));
+				}
+				if(args.length >= 1 && (args[0].equalsIgnoreCase("view") || args[0].equalsIgnoreCase("viewChallenges") || args[0].equalsIgnoreCase("review") || args[0].equalsIgnoreCase("reviewChallenges") || args[0].equalsIgnoreCase("showAll") || args[0].equalsIgnoreCase("showAllChallenges"))) {
+					if(!sender.hasPermission("skyblock.challenge.showAll") && !sender.hasPermission("skyblock.challenge.showall")) {
+						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+						return true;
+					}
+					if(user == null) {
+						sendPlayersOnlyMsg(sender, command);
+						return true;
+					}
+					if(args.length == 3) {
+						int maxPages = getMaximumChallengeScreenPages(true);
+						if(args[1].equalsIgnoreCase("page")) {
+							if(Main.isInt(args[2]) && Integer.parseInt(args[2]) > 0) {
+								int page = Integer.parseInt(args[2]);
+								if(page > maxPages) {
+									sender.sendMessage(ChatColor.YELLOW + "Page " + Integer.toString(page) + " is too big.");
+									sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+									sender.sendMessage(ChatColor.YELLOW + "Tip: To return to the last page you were viewing quickly, simply omit the page parameters.");
+									return true;
+								}
+								Challenge.setLastChallengeScreenPageFor(user.getUniqueId(), page - 1, true);
+							} else {
+								sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " " + args[0] + " page {pageNum}" + ChatColor.YELLOW + "\"; where {pageNum} is a positive integer from 1 to the maximum page count.");
+								sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+								sender.sendMessage(ChatColor.YELLOW + "Tip: To return to the last page you were viewing quickly, simply omit the page parameters.");
+							}
+						} else {
+							sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " " + args[0] + " page {pageNum}" + ChatColor.YELLOW + "\"; where {pageNum} is a positive integer from 1 to the maximum page count.");
+							sender.sendMessage(ChatColor.YELLOW + "There are currently " + Integer.toString(maxPages) + " pages in total.");
+							sender.sendMessage(ChatColor.YELLOW + "Tip: To return to the last page you were viewing quickly, simply omit the page parameters.");
+						}
+					}
+					user.openInventory(Challenge.getReviewChallengesScreen(user));
+					return true;
+				}
 				if(args.length >= 1 && args[0].equalsIgnoreCase("canComplete")) {
+					if(args.length == 1) {
+						
+						return true;
+					}
 					if(args.length == 2) {
 						if(user == null) {
-							sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
-							sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
-							sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-							sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-							sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+							sendPlayersOnlyMsg(sender, command);
 							return true;
 						}
 						Challenge challenge = Challenge.getChallengeByName(args[1]);
@@ -124,8 +307,10 @@ public class Challenge {
 							sender.sendMessage(ChatColor.RED + "This command can only be used in the skyworld!");
 							return true;
 						}
+						sender.sendMessage(ChatColor.GREEN.toString().concat("You ").concat(challenge.canComplete(user) ? ChatColor.DARK_GREEN.toString().concat("can ") : ChatColor.RED.toString().concat("can not")).concat(ChatColor.GREEN.toString()).concat(" complete the challenge \"").concat(ChatColor.WHITE.toString()).concat(challenge.getDisplayName()).concat(ChatColor.GREEN.toString()).concat("\"."));
+						return true;
 					}
-					if(!sender.hasPermission("challenge.manage")) {
+					if(!sender.hasPermission("skyblock.challenge.manage")) {
 						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
 						return true;
 					}
@@ -152,35 +337,8 @@ public class Challenge {
 					sender.sendMessage(ChatColor.GREEN + "Took challenge requirements from player \"" + ChatColor.WHITE + target.getPlayer().getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\" using challenge \"" + ChatColor.WHITE + challenge.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + "\"'s requirements.");
 					return true;
 				}
-				if(args.length >= 1 && (args[0].equalsIgnoreCase("viewPlayerChallenges") || args[0].equalsIgnoreCase("editPlayerChallenges") || args[0].equalsIgnoreCase("viewPlayer") || args[0].equalsIgnoreCase("editPlayer"))) {
-					if(!sender.hasPermission("challenge.manage")) {
-						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
-						return true;
-					}
-					if(user == null) {
-						sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
-						sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
-						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " setComplete {playerName} {challengeName} {timesCompleted}" + ChatColor.YELLOW + "\".");
-						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " completedTimes {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-						sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-						return true;
-					}
-					if(args.length != 2) {
-						sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " viewPlayerChallenges {playerName}" + ChatColor.YELLOW + "\".");
-						return true;
-					}
-					@SuppressWarnings("deprecation")
-					OfflinePlayer target = Main.server.getOfflinePlayer(args[1]);
-					if(target == null || !target.isOnline()) {
-						sender.sendMessage(ChatColor.YELLOW + "Player \"" + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.YELLOW + "\" does not exist or is not online.");
-						return true;
-					}
-					user.openInventory(Challenge.getChallengeScreen(target.getPlayer(), true));
-				}
 				if(args.length >= 1 && args[0].equalsIgnoreCase("takeRequirements")) {
-					if(!sender.hasPermission("challenge.manage")) {
+					if(!sender.hasPermission("skyblock.challenge.manage")) {
 						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
 						return true;
 					}
@@ -208,7 +366,7 @@ public class Challenge {
 					return true;
 				}
 				if(args.length >= 1 && args[0].equalsIgnoreCase("reward")) {
-					if(!sender.hasPermission("challenge.manage")) {
+					if(!sender.hasPermission("skyblock.challenge.manage")) {
 						sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
 						return true;
 					}
@@ -236,13 +394,7 @@ public class Challenge {
 					return true;
 				}
 				if(user == null) {
-					sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
-					sender.sendMessage(ChatColor.YELLOW + "Alternately, you may manage players' challenges via:");
-					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " canComplete {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " setComplete {playerName} {challengeName} {timesCompleted}" + ChatColor.YELLOW + "\".");
-					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " completedTimes {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " takeItems {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
-					sender.sendMessage(ChatColor.YELLOW + "\"" + ChatColor.WHITE + "/" + command + " reward {playerName} {challengeName}" + ChatColor.YELLOW + "\".");
+					sendPlayersOnlyMsg(sender, command);
 					return true;
 				}
 				if(!Island.isInSkyworld(user)) {
@@ -251,8 +403,12 @@ public class Challenge {
 				}
 				if(args.length == 0) {
 					user.openInventory(Challenge.getChallengeScreen(user));
-				} else if(args.length == 2) {
+				} else if(args.length >= 1) {
 					if(args[0].equalsIgnoreCase("complete")) {
+						if(args.length == 1) {
+							sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " complete {challengeName}" + ChatColor.YELLOW + "\".");
+							return true;
+						}
 						Challenge challenge = Challenge.getChallengeByName(args[1]);
 						if(challenge == null) {
 							sender.sendMessage(ChatColor.RED + "There is no challenge with the name \"" + ChatColor.WHITE + args[1] + ChatColor.RESET + ChatColor.RED + "\".");
@@ -280,9 +436,10 @@ public class Challenge {
 						}
 						return true;
 					}
-					sender.sendMessage(ChatColor.YELLOW + "Usage: \"" + ChatColor.WHITE + "/" + command + " complete {challengeName}" + ChatColor.YELLOW + "\".");
+					
 					return true;
 				}
+				Main.server.dispatchCommand(sender, "challenge help");
 				return true;
 			}
 			return false;
@@ -321,8 +478,11 @@ public class Challenge {
 	}
 	
 	private static final ConcurrentLinkedDeque<Challenge> challenges = new ConcurrentLinkedDeque<>();
-	private static final int max_levels = 6;
-	private static volatile boolean challengeDifficultiesAreHalfPercentagedTiers = true;//false;
+	private static final int max_rows = 5;//9 * 6 = 54; last row of slots is reserved for gui buttons; 5 usable rows
+	
+	public static final boolean challengeDifficultiesAreHalfPercentagedTiers() {
+		return getChallengeConfig().getBoolean("challengeDifficultiesAreHalfPercentagedTiers", true);
+	}
 	
 	/** If no challenge files are saved in the challenge save folder, this will
 	 * save the default challenges to the folder.
@@ -351,13 +511,13 @@ public class Challenge {
 			challenges.add(new Challenge("homestead", "&6Homestead", new String[] {"Build yourself a nice", "place to live"}, Material.BOOKSHELF, (short) 0, 1, 1, new ItemStack[] {}, false, 0, false, new ItemStack[0], new ItemStack[0], 0.28, 0.282842712F, new String[0], new String[0], new PotionEffect[0]));
 			
 			getChallengeByName("blaze_hunter", challenges)//
-					.addRequiredChallenge(getChallengeByName("cobblestone", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("cactus", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("wheat_farmer", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("apple_farmer", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("gold_miner", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("emerald_miner", challenges), CompletionType.FIRST)//
-					.addRequiredChallenge(getChallengeByName("diamond_miner", challenges), CompletionType.FIRST);
+			.addRequiredChallenge(getChallengeByName("cobblestone", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("cactus", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("wheat_farmer", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("apple_farmer", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("gold_miner", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("emerald_miner", challenges), CompletionType.FIRST)//
+			.addRequiredChallenge(getChallengeByName("diamond_miner", challenges), CompletionType.FIRST);
 			getChallengeByName("homestead", challenges).firstRewards.requiredChallenges.addAll(getChallengeByName("blaze_hunter", challenges).firstRewards.requiredChallenges);
 			saveChallenges(challenges, folder, true);
 		}
@@ -373,7 +533,8 @@ public class Challenge {
 	
 	/** @return Whether or not all the challenges saved successfully. */
 	public static final boolean saveChallenges() {
-		return saveChallenges(challenges, getChallengeSaveFolder(), true);
+		boolean success = saveChallengeConfig();
+		return success & saveChallenges(challenges, getChallengeSaveFolder(), true);
 	}
 	
 	/** @param challenges The list of challenges to save
@@ -398,6 +559,7 @@ public class Challenge {
 	}
 	
 	public static final int loadChallenges() {
+		loadChallengeConfig();
 		Challenge.saveDefaultChallenges();
 		return loadChallenges(challenges, getChallengeSaveFolder());
 	}
@@ -453,34 +615,234 @@ public class Challenge {
 		return challenges.size();
 	}
 	
-	/** @return The inventory title used for the challenge screen */
+	/** @return The inventory title used for the /challenge screen */
 	public static final String getChallengeScreenTitle() {
 		return ChatColor.GOLD.toString().concat("Island Challenges");
 	}
 	
+	/** @return The inventory title used for the /c editor screen */
+	public static final String getManageChallengesTitle() {
+		return ChatColor.GOLD.toString().concat("Challenge Editor");
+	}
+	
+	/** @return The inventory title used for the /c showAll */
+	public static final String getReviewChallengesTitle() {
+		return ChatColor.GOLD.toString().concat("Island Challenges Review");
+	}
+	
+	/** @param playerName The player whose challenge completion states will be
+	 *            edited by someone else
+	 * @return */
+	public static final String getEditPlayerChallengesTitle(String playerName) {
+		return ChatColor.GOLD.toString().concat(playerName.length() > (32 - 13) ? (playerName.length() >= (32 - 16) ? playerName.substring(0, playerName.length() - (32 - 16)).concat("...") : playerName.substring(0, playerName.length() - (32 - 13))) : playerName).concat("'s Challenges");
+	}
+	
 	/** @return The size of the inventory used for the challenge screen */
 	public static final int getChallengeScreenSize() {
-		return max_levels * 9;
+		return Math.min(54, (max_rows + 1) * 9);
 	}
 	
 	/** @param player The player who will be viewing the screen, or
 	 *            <b><code>null</code></b> for a generic audience
 	 * @return The resulting challenge screen */
 	public static final Inventory getChallengeScreen(Player player) {
-		return getChallengeScreen(player, false);
+		return getChallengeScreen(player, false, false, false);
 	}
 	
-	/** @param player The player who will be viewing the screen, or
-	 *            <b><code>null</code></b> for a generic audience
+	/** @param player The player who will be creating/editing/deleting
+	 *            challenges with this screen
 	 * @return The resulting challenge screen */
-	public static final Inventory getChallengeScreen(Player player, boolean managing) {
-		//Island island = Island.getIslandFor(player);
-		Inventory screen = Main.server.createInventory(player, getChallengeScreenSize(), managing ? ChatColor.GOLD.toString().concat(player.getName().length() > (32 - 13) ? (player.getName().length() >= (32 - 16) ? player.getName().substring(0, player.getName().length() - (32 - 16)).concat("...") : player.getName().substring(0, player.getName().length() - (32 - 13))) : player.getName()).concat("'s Challenges") : getChallengeScreenTitle());
-		for(Challenge challenge : challenges) {
-			ItemStack icon = challenge.getIconFor(player);//ItemStack icon = challenge.getIcon(island == null ? false : island.hasMemberCompleted(player, challenge));
-			screen.setItem(challenge.getInvSlot(), icon);
+	public static final Inventory getManageChallengesScreen(OfflinePlayer player) {
+		return getChallengeScreen(player, true, false, false);
+	}
+	
+	/** @param player The player whose challenge completion states will be
+	 *            edited by another player
+	 * @return The resulting challenge screen */
+	public static final Inventory getReviewChallengesScreen(OfflinePlayer player) {
+		return getChallengeScreen(player, false, true, false);
+	}
+	
+	/** @param player The player whose challenge completion states will be
+	 *            edited by another player
+	 * @return The resulting challenge screen */
+	public static final Inventory getEditPlayersChallengesScreen(OfflinePlayer player) {
+		return getChallengeScreen(player, false, false, true);
+	}
+	
+	private static final ConcurrentHashMap<String, ConcurrentHashMap<Boolean, Integer>> lastPlayerChallengeScreenPages = new ConcurrentHashMap<>();
+	
+	public static final int getMaximumChallengeScreenPages(boolean managing) {
+		int total = 1;
+		if(managing) {
+			//TODO
+		} else {
+			//Probably a faster way to do this, but the above code doesn't account for the main menu sign in the lower right...
+			int page = 0, i = 0;
+			int invSize = getChallengeScreenSize();
+			for(int j = 0; j < challenges.size(); j++) {
+				if(i >= invSize - 1) {
+					i = 0;
+					page++;
+				}
+				i++;
+			}
+			total = Math.max(1, page);
 		}
-		InventoryGUI.setMainMenuSign(screen, getChallengeScreenSize() - 1);
+		return total;
+	}
+	
+	public static final int getLastChallengeScreenPageFor(OfflinePlayer player, boolean editingPlayers) {
+		if(player != null) {
+			return getLastChallengeScreenPageFor(player.getUniqueId(), editingPlayers);
+		}
+		return -1;
+	}
+	
+	public static final int getLastChallengeScreenPageFor(UUID player, boolean editingPlayers) {
+		if(player != null) {
+			ConcurrentHashMap<Boolean, Integer> editingPlayersOrNormal = lastPlayerChallengeScreenPages.get(player.toString());
+			Integer lastPage = (editingPlayersOrNormal = editingPlayersOrNormal == null ? new ConcurrentHashMap<>() : editingPlayersOrNormal).get(Boolean.valueOf(editingPlayers));
+			editingPlayersOrNormal.put(Boolean.valueOf(editingPlayers), (lastPage = lastPage == null ? Integer.valueOf(0) : lastPage));
+			return lastPage.intValue();
+		}
+		return -1;
+	}
+	
+	public static final void setLastChallengeScreenPageFor(OfflinePlayer player, int page, boolean editingPlayers) {
+		if(player != null) {
+			setLastChallengeScreenPageFor(player.getUniqueId(), page, editingPlayers);
+		}
+	}
+	
+	public static final void setLastChallengeScreenPageFor(UUID player, int page, boolean editingPlayers) {
+		if(player != null) {
+			page = Math.max(0, Math.min(getMaximumChallengeScreenPages(editingPlayers), page));
+			ConcurrentHashMap<Boolean, Integer> editingPlayersOrNormal = lastPlayerChallengeScreenPages.get(player.toString());
+			lastPlayerChallengeScreenPages.put(player.toString(), (editingPlayersOrNormal = editingPlayersOrNormal == null ? new ConcurrentHashMap<>() : editingPlayersOrNormal));
+			editingPlayersOrNormal.put(Boolean.valueOf(editingPlayers), Integer.valueOf(page));
+		}
+	}
+	
+	public static final Challenge[] getChallengesInSlotOrder() {
+		Challenge[] array;// = new Challenge[challenges.size()];
+		int arraySize = 0;
+		HashMap<Integer, Challenge> map = new HashMap<>();
+		for(Challenge challenge : challenges) {
+			int slot = challenge.getInvSlot();
+			map.put(Integer.valueOf(slot), challenge);
+			arraySize = slot + 1 > arraySize ? slot + 1 : arraySize;
+		}
+		array = new Challenge[arraySize];
+		for(int i = 0; i < array.length; i++) {
+			array[i] = map.get(Integer.valueOf(i));
+		}
+		return array;
+	}
+	
+	public static final Challenge[] getChallengesOnScreenPageRaw(int page) {
+		final int invSize = getChallengeScreenSize();
+		Challenge[] array = new Challenge[invSize];
+		int curPage = 0, i = 0;
+		for(Challenge challenge : getChallengesInSlotOrder()) {
+			if(i >= invSize) {
+				i = 0;
+				curPage++;
+			}
+			if(page == curPage && challenge != null) {
+				int slot = challenge.getInvSlot() % invSize;
+				if(slot >= invSize - 9 && slot <= invSize - 1) {
+					Main.getPluginLogger().warning(ChatColor.YELLOW.toString().concat("The challenge \"").concat(challenge.getName()).concat("\" is using inv slot ").concat(Integer.toString(challenge.getInvSlot())).concat("; which is a slot reserved for the GUI navigation buttons!\nThis challenge won't show up in the GUI, and therefore will only be usable via commands.\nTo fix this, change the challenge's index and/or difficulty and then type \"/esb reload\" to reload all challenges from file."));
+					i++;
+					continue;
+				}
+				if(slot >= array.length) {//Shouldn't happen, but...
+					Main.getPluginLogger().warning(ChatColor.RED.toString().concat("\n /!\\  Oops! Brian made a mistake when coding his skyblock plugin: getChallengesOnScreenPage(").concat(Integer.toString(page)).concat("): invSize: ").concat(Integer.toString(invSize)).concat("; array.length: ").concat(Integer.toString(array.length)).concat("; slot: ").concat(Integer.toString(slot)).concat("; curPage: ").concat(Integer.toString(curPage)).concat("; i: ").concat(Integer.toString(i)).concat(";\n/___\\ Send this debug message to him so he can fix it please."));
+					i++;
+					continue;
+				}
+				array[slot] = challenge;
+			}
+			i++;
+		}
+		return array;
+	}
+	
+	public static final List<Challenge> getChallengesOnScreenPage(int page) {
+		List<Challenge> list = new ArrayList<>();
+		for(Challenge challenge : getChallengesOnScreenPageRaw(page)) {
+			if(challenge != null) {
+				list.add(challenge);
+			}
+		}
+		return list;
+	}
+	
+	/** @param page The zero-based challenge screen page
+	 * @return Whether or not this challenge is on the given page */
+	public final boolean isOnChallengeScreenPage(int page) {
+		final int invSize = getChallengeScreenSize();
+		int curPage = 0, i = 0;
+		for(Challenge challenge : getChallengesInSlotOrder()) {
+			if(i >= invSize) {
+				i = 0;
+				curPage++;
+			}
+			if(challenge == this) {
+				return page == curPage;
+			}
+			i++;
+		}
+		return false;
+	}
+	
+	/** @param player The player
+	 * @param managing Whether or not the given player will be managing
+	 *            challenges with this screen
+	 * @param viewing Whether or not the given player will just be viewing all
+	 *            challenges(challenges will all be unlocked, but not usable)
+	 * @param editingPlayers Whether or not a player will be editing the given
+	 *            player's challenge completion states
+	 * @return The resulting challenge screen */
+	public static final Inventory getChallengeScreen(OfflinePlayer player, boolean managing, boolean viewing, boolean editingPlayers) {
+		//Island island = Island.getIslandFor(player);
+		int maxPages = getMaximumChallengeScreenPages(managing);
+		int page = getLastChallengeScreenPageFor(player, managing);
+		String title = getChallengeScreenTitle();
+		title = viewing ? getReviewChallengesTitle() : title;
+		title = editingPlayers ? getEditPlayerChallengesTitle(player.getName()) : title;
+		title = managing ? getManageChallengesTitle() : title;
+		Inventory screen = Main.server.createInventory(player == null ? null : (player.isOnline() ? player.getPlayer() : new PlayerAdapter(player.getUniqueId(), player.getName(), player.getBedSpawnLocation(), GameMode.SURVIVAL)), getChallengeScreenSize(), title);
+		if(managing) {
+			//TODO
+			InventoryGUI.setMainMenuSign(screen, screen.getSize() - 1);
+		} else {
+			for(Challenge challenge : getChallengesOnScreenPage(page)) {
+				ItemStack icon = viewing ? challenge.getIcon(Integer.MIN_VALUE) : challenge.getIconFor(player);//ItemStack icon = challenge.getIcon(island == null ? false : island.hasMemberCompleted(player, challenge));
+				screen.setItem(challenge.getInvSlot(), icon);
+			}
+			for(int difficulty = 0; difficulty < max_rows; difficulty++) {
+				int slot = 8 + (9 * difficulty);
+				screen.setItem(slot, getDifficultyIcon(difficulty));
+			}
+			// Page/Island Menu Navigation
+			if(page == maxPages - 1) {
+				InventoryGUI.setMainMenuSign(screen, screen.getSize() - (page == 0 ? 9 : 1));
+			} else {
+				if(page == 0) {
+					InventoryGUI.setMainMenuSign(screen, screen.getSize() - 9);
+					if(maxPages > 1) {
+						InventoryGUI.setPageButton(screen, screen.getSize() - 1, true, page);
+					}//else remove screen.getSize() - 1
+					
+				} else {
+					if(page < maxPages - 1) {
+						InventoryGUI.setPageButton(screen, screen.getSize() - 1, true, page);
+					}//else remove screen.getSize() - 1
+					InventoryGUI.setPageButton(screen, screen.getSize() - 9, false, page);
+				}
+			}
+		}
 		return screen;
 	}
 	
@@ -829,7 +1191,7 @@ public class Challenge {
 		this.description = description;
 		this.icon = icon == null ? Material.STONE : icon;
 		this.iconData = iconData;
-		this.difficulty = Math.max(0, Math.min(max_levels - 1, difficulty));
+		this.difficulty = Math.max(0, Math.min(max_rows - 1, difficulty));
 		this.index = Math.max(0, Math.min(8, index));
 		this.repeatable = repeatable;
 		this.firstRewards = new ChallengeInfo();
@@ -958,8 +1320,25 @@ public class Challenge {
 		return this.index + (this.difficulty * 9);
 	}
 	
-	public static final String getTierTitle(int tier) {
-		switch(tier) {
+	public final int getInvSlotModInvSize() {
+		return this.getInvSlot() % getChallengeScreenSize();
+	}
+	
+	public static final boolean isInvSlotReserved(int invSlot, boolean manage) {
+		if(manage) {
+			
+			return false;
+		}
+		int invSize = getChallengeScreenSize();
+		int slot = invSlot % invSize;
+		if(slot == invSize - 1 || slot == invSize - 9) {
+			return true;
+		}
+		return false;
+	}
+	
+	public static final String getDefaultDifficultyTitle(int difficulty) {
+		switch(difficulty) {
 		default:
 			return ChatColor.WHITE.toString().concat(ChatColor.BOLD.toString()).concat("Non-existant Challenge Tier(Error!)");
 		case 0://Easy
@@ -977,53 +1356,118 @@ public class Challenge {
 		}
 	}
 	
+	public static final String getDifficultyTitle(int difficulty) {
+		String def = getDefaultDifficultyTitle(difficulty);
+		return getChallengeConfig().getString("difficulty.".concat(Integer.toString(difficulty)).concat(".title"), def);
+	}
+	
+	public static final List<String> getDefaultDifficultyDescription(int difficulty) {
+		String[] desc;
+		switch(difficulty) {
+		default://Error
+			desc = new String[] {//
+					ChatColor.WHITE.toString().concat("This is the non-existent tier of challenges."),//
+					ChatColor.BOLD.toString().concat("(Contact a staff member for assistance; this is an error.)")
+			};
+			break;
+		case 0://Easy
+			desc = new String[] {//
+					ChatColor.GREEN.toString().concat("Challenges in this tier are the easiest"),//
+					ChatColor.GREEN.toString().concat("to complete, and serve to help you get"),//
+					ChatColor.GREEN.toString().concat("your island started."),//
+			};
+			break;
+		case 1://Medium
+			desc = new String[] {//
+					ChatColor.YELLOW.toString().concat("Challenges in this tier take a little"),//
+					ChatColor.YELLOW.toString().concat("bit of effort to complete."),//
+			};
+			break;
+		case 2://Hard
+			desc = new String[] {//
+					ChatColor.GOLD.toString().concat("Challenges in this tier are tougher to"),//
+					ChatColor.GOLD.toString().concat("complete. They may take a longer time to"),//
+					ChatColor.GOLD.toString().concat("complete, but they'll be worth it!"),//
+			};
+			break;
+		case 3://Expert
+			desc = new String[] {//
+					ChatColor.DARK_RED.toString().concat("These challenges are not for the ametuer"),//
+					ChatColor.DARK_RED.toString().concat("skyblocker, as they require that you put"),//
+					ChatColor.DARK_RED.toString().concat("in a lot of work and time. Once completed,"),//
+					ChatColor.DARK_RED.toString().concat("you'll be the envy of other players!"),//
+			};
+			break;
+		case 4://Master
+			desc = new String[] {//
+					ChatColor.DARK_PURPLE.toString().concat("These challenges are so hard that you have"),//
+					ChatColor.DARK_PURPLE.toString().concat("to be ").concat(ChatColor.BOLD.toString()).concat("very").concat(ChatColor.RESET.toString()).concat(ChatColor.DARK_PURPLE.toString()).concat(" dedicated to completing them."),//
+					ChatColor.DARK_PURPLE.toString().concat("Once completed, bragging rights won't be the"),//
+					ChatColor.DARK_PURPLE.toString().concat("only thing in your possession for sure!"),//
+			};
+			break;
+		case 5://Impossible
+			desc = new String[] {//
+					ChatColor.DARK_GRAY.toString().concat("These challenges are so hard that you"),//
+					ChatColor.DARK_GRAY.toString().concat("might say they're impossible. They aren't"),//
+					ChatColor.DARK_GRAY.toString().concat("called challenges for nothing!"),//
+			};
+			break;
+		}
+		return Arrays.asList(desc);
+	}
+	
+	public static final List<String> getDifficultyDescription(int difficulty) {
+		List<String> def = getDefaultDifficultyDescription(difficulty);
+		List<String> list = getChallengeConfig().getStringList("difficulty.".concat(Integer.toString(difficulty)).concat(".description"));
+		return list.isEmpty() ? def : list;
+	}
+	
 	public final ItemStack getLockedIcon() {
 		List<String> lore = new ArrayList<>();
 		Material material;
+		String tierOrRow = Challenge.challengeDifficultiesAreHalfPercentagedTiers() ? "tier" : "row";
+		String unlockMsg1 = "Unlock at least half of the previous";
+		String unlockMsg2 = tierOrRow.concat(" of challenges to unlock these.");
+		lore.add(getDifficultyTitle(this.difficulty));
 		switch(this.difficulty) {
 		case 0://Easy
 		default:
 			material = Material.LIME_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.GREEN.toString().concat("This easy challenge is locked for some reason. Hrrm."));
+			lore.add(ChatColor.GREEN.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked for some reason. Hrrm."));
 			lore.add(ChatColor.GREEN.toString().concat("Unlock at least half of the non-existant"));
-			lore.add(ChatColor.GREEN.toString().concat("previous tier of challenges to unlock these."));
-			lore.add(ChatColor.WHITE.toString().concat(ChatColor.BOLD.toString()).concat("(Contact a staff member for assistance.)"));
+			lore.add(ChatColor.GREEN.toString().concat("previous ").concat(tierOrRow).concat(" of challenges to unlock these."));
+			lore.add(ChatColor.WHITE.toString().concat(ChatColor.BOLD.toString()).concat("(Contact a staff member for assistance; this is an error.)"));
 			break;
 		case 1://Medium
 			material = Material.YELLOW_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.YELLOW.toString().concat("This medium challenge is locked."));
-			lore.add(ChatColor.YELLOW.toString().concat("Unlock at least half of the previous"));
-			lore.add(ChatColor.YELLOW.toString().concat("tier of challenges to unlock these."));
+			lore.add(ChatColor.YELLOW.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked."));
+			lore.add(ChatColor.YELLOW.toString().concat(unlockMsg1));
+			lore.add(ChatColor.YELLOW.toString().concat(unlockMsg2));
 			break;
 		case 2://Hard
 			material = Material.ORANGE_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.GOLD.toString().concat("This hard challenge is locked."));
-			lore.add(ChatColor.GOLD.toString().concat("Unlock at least half of the previous"));
-			lore.add(ChatColor.GOLD.toString().concat("tier of challenges to unlock these."));
+			lore.add(ChatColor.GOLD.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked."));
+			lore.add(ChatColor.GOLD.toString().concat(unlockMsg1));
+			lore.add(ChatColor.GOLD.toString().concat(unlockMsg2));
 			break;
 		case 3://Expert
 			material = Material.RED_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.DARK_RED.toString().concat("This expert challenge is locked."));
-			lore.add(ChatColor.DARK_RED.toString().concat("Unlock at least half of the previous"));
-			lore.add(ChatColor.DARK_RED.toString().concat("tier of challenges to unlock these."));
+			lore.add(ChatColor.DARK_RED.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked."));
+			lore.add(ChatColor.DARK_RED.toString().concat(unlockMsg1));
+			lore.add(ChatColor.DARK_RED.toString().concat(unlockMsg2));
 			break;
 		case 4://Master
 			material = Material.PURPLE_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.DARK_PURPLE.toString().concat("This master challenge is locked."));
-			lore.add(ChatColor.DARK_PURPLE.toString().concat("Unlock at least half of the previous"));
-			lore.add(ChatColor.DARK_PURPLE.toString().concat("tier of challenges to unlock these."));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked."));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat(unlockMsg1));
+			lore.add(ChatColor.DARK_PURPLE.toString().concat(unlockMsg2));
 			break;
 		case 5://Impossible
 			material = Material.BLACK_STAINED_GLASS_PANE;
-			lore.add(getTierTitle(this.difficulty));
-			lore.add(ChatColor.DARK_GRAY.toString().concat("This (im)possible challenge is locked."));
-			lore.add(ChatColor.DARK_GRAY.toString().concat("Unlock at least half of the previous"));
-			lore.add(ChatColor.DARK_GRAY.toString().concat("tier of challenges to unlock these."));
+			lore.add(ChatColor.DARK_GRAY.toString().concat("This ").concat(getDifficultyName(this.difficulty).toLowerCase()).concat(" challenge is locked."));
+			lore.add(ChatColor.DARK_GRAY.toString().concat(unlockMsg1));
+			lore.add(ChatColor.DARK_GRAY.toString().concat(unlockMsg2));
 			break;
 		}
 		ItemStack icon = new ItemStack(material, 1);
@@ -1035,12 +1479,12 @@ public class Challenge {
 		return icon;
 	}
 	
-	public static final int getNumberOfChallengesInTier(int tier) {
-		return Challenge.getChallengesByDifficulty(tier).size();
+	public static final int getNumberOfChallengesInDifficulty(int difficulty) {
+		return Challenge.getChallengesByDifficulty(difficulty).size();
 	}
 	
-	public static final int getMinimumNumberOfChallengesRequiredToCompleteTier(int totalChallengesInTier) {//(int tier) {
-		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers) {
+	public static final int getMinimumNumberOfChallengesRequiredToCompleteDifficulty(int totalChallengesInTier) {//(int tier) {
+		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers()) {
 			return 0;
 		}
 		return (totalChallengesInTier / 2) + (totalChallengesInTier % 2 == 0 ? 0 : 1);
@@ -1048,26 +1492,26 @@ public class Challenge {
 	
 	public static final void main(String[] args) {
 		for(int i = 9; i >= 0; i--) {
-			System.out.println(Integer.toString(i).concat(": ").concat(Integer.toString(getMinimumNumberOfChallengesRequiredToCompleteTier(i))));
+			System.out.println(Integer.toString(i).concat(": ").concat(Integer.toString(getMinimumNumberOfChallengesRequiredToCompleteDifficulty(i))));
 		}
 	}
 	
-	public static final int getNumberOfChallengesLeftUntilTierIsComplete(Player player, int tier, boolean fully) {
+	public static final int getNumberOfChallengesLeftUntilDifficultyIsComplete(Player player, int difficulty, boolean fully) {
 		int totalChallenges = 0, numCompleted = 0;
-		for(Challenge challenge : Challenge.getChallengesByDifficulty(tier)) {
+		for(Challenge challenge : Challenge.getChallengesByDifficulty(difficulty)) {
 			totalChallenges++;
 			if(challenge.hasCompleted(player)) {
 				numCompleted++;
 			}
 		}
-		return (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteTier(totalChallenges)) - numCompleted;
+		return (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteDifficulty(totalChallenges)) - numCompleted;
 	}
 	
-	public static final boolean hasCompletedTier(Player player, int tier, boolean fully) {
-		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers || tier < 0) {
+	public static final boolean hasCompletedDifficulty(OfflinePlayer player, int difficulty, boolean fully) {
+		if(!Challenge.challengeDifficultiesAreHalfPercentagedTiers() || difficulty < 0) {
 			return true;
 		}
-		List<Challenge> previousTiers = Challenge.getChallengesByDifficulty(tier);
+		List<Challenge> previousTiers = Challenge.getChallengesByDifficulty(difficulty);
 		int totalChallenges = 0, numCompleted = 0;
 		for(Challenge challenge : previousTiers) {
 			totalChallenges++;
@@ -1075,23 +1519,62 @@ public class Challenge {
 				numCompleted++;
 			}
 		}
-		return numCompleted >= (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteTier(totalChallenges));
+		return numCompleted >= (fully ? totalChallenges : getMinimumNumberOfChallengesRequiredToCompleteDifficulty(totalChallenges));
 	}
 	
-	public static final boolean hasUnlockedNextTier(Player player, int tier) {
-		return hasCompletedTier(player, tier, false);
+	public static final boolean hasUnlockedNextDifficulty(OfflinePlayer player, int difficulty) {
+		return hasCompletedDifficulty(player, difficulty, false);
+	}
+	
+	public static final ItemStack getDifficultyIcon(int difficulty) {
+		if(difficulty < 0) {
+			return null;
+		}
+		List<String> lore = new ArrayList<>();
+		Material material;
+		switch(difficulty) {
+		case 0://Easy
+		default:
+			material = Material.LIME_STAINED_GLASS_PANE;
+			break;
+		case 1://Medium
+			material = Material.YELLOW_STAINED_GLASS_PANE;
+			break;
+		case 2://Hard
+			material = Material.ORANGE_STAINED_GLASS_PANE;
+			break;
+		case 3://Expert
+			material = Material.RED_STAINED_GLASS_PANE;
+			break;
+		case 4://Master
+			material = Material.PURPLE_STAINED_GLASS_PANE;
+			break;
+		case 5://Impossible
+			material = Material.BLACK_STAINED_GLASS_PANE;
+			break;
+		}
+		lore.addAll(getDifficultyDescription(difficulty));
+		ItemStack icon = new ItemStack(material, 1);
+		ItemMeta meta = Main.server.getItemFactory().getItemMeta(material);
+		meta.setDisplayName(getDifficultyTitle(difficulty));
+		meta.setLore(lore);
+		meta.addItemFlags(ItemFlag.values());//lol, even though all I needed to put here was ItemFlag.HIDE_ENCHANTS
+		icon.setItemMeta(meta);
+		return icon;
 	}
 	
 	/** @param player The player whose challenge icon will be returned
 	 * @return The icon representing this challenge */
-	public final ItemStack getIconFor(Player player) {
-		Island island = Island.getMainIslandFor(player);//Island.getIslandPlayerIsUsing(player, true);
-		if(island == null) {
-			return this.getLockedIcon();
-		}
-		if(this.difficulty > 0 && Challenge.challengeDifficultiesAreHalfPercentagedTiers) {
-			if(!hasUnlockedNextTier(player, this.difficulty - 1)) {
+	public final ItemStack getIconFor(OfflinePlayer player) {
+		if(player != null) {
+			Island island = Island.getMainIslandFor(player);//Island.getIslandPlayerIsUsing(player, true);
+			if(island == null) {
 				return this.getLockedIcon();
+			}
+			if(this.difficulty > 0 && Challenge.challengeDifficultiesAreHalfPercentagedTiers()) {
+				if(!hasUnlockedNextDifficulty(player, this.difficulty - 1)) {
+					return this.getLockedIcon();
+				}
 			}
 		}
 		return this.getIcon(this.getTimesCompleted(player));//this.hasCompleted(player));
@@ -1100,7 +1583,7 @@ public class Challenge {
 	/** @param player The player to use
 	 * @return The number of times that the given player has completed this
 	 *         challenge */
-	public final int getTimesCompleted(Player player) {
+	public final int getTimesCompleted(OfflinePlayer player) {
 		Island island = Island.getMainIslandFor(player);
 		if(island == null) {
 			return -1;
@@ -1139,11 +1622,15 @@ public class Challenge {
 				}
 			}
 			if(!firstRequirementsAreSameAsRepeat) {
-				for(String requirement : firstRequirements) {
-					lore.add(requirement);
+				if(timesCompleted <= 0 || timesCompleted == Integer.MIN_VALUE) {
+					for(String requirement : firstRequirements) {
+						lore.add(requirement);
+					}
 				}
-				for(String requirement : repeatRequirements) {
-					lore.add(requirement);
+				if(timesCompleted >= 1 || timesCompleted == Integer.MIN_VALUE) {
+					for(String requirement : repeatRequirements) {
+						lore.add(requirement);
+					}
 				}
 			} else {
 				for(int i = 1; i < firstRequirements.length; i++) {
@@ -1179,11 +1666,15 @@ public class Challenge {
 				}
 			}
 			if(!firstRewardsAreSameAsRepeat) {
-				for(String reward : firstRewards) {
-					lore.add(reward);
+				if(timesCompleted <= 0 || timesCompleted == Integer.MIN_VALUE) {
+					for(String reward : firstRewards) {
+						lore.add(reward);
+					}
 				}
-				for(String reward : repeatRewards) {
-					lore.add(reward);
+				if(timesCompleted >= 1 || timesCompleted == Integer.MIN_VALUE) {
+					for(String reward : repeatRewards) {
+						lore.add(reward);
+					}
 				}
 			} else {
 				for(int i = 1; i < firstRewards.length; i++) {
@@ -1327,12 +1818,20 @@ public class Challenge {
 	
 	/** @return This challenge's difficulty level, in readable format */
 	public final String getDifficultyString() {
-		return difficultyToString(this.getDifficulty());
+		return getDifficultyName(this.difficulty);
+	}
+	
+	public final String getDifficultyTitle() {
+		return getDifficultyTitle(this.difficulty);
+	}
+	
+	public final List<String> getDifficultyDescription() {
+		return getDifficultyDescription(this.difficulty);
 	}
 	
 	/** @param difficulty The difficulty level to translate
 	 * @return The translated level */
-	public static final String difficultyToString(int difficulty) {
+	public static final String getDefaultDifficultyName(int difficulty) {
 		difficulty = Math.max(0, Math.min(4, difficulty));
 		switch(difficulty) {
 		case 0:
@@ -1347,6 +1846,11 @@ public class Challenge {
 		case 4:
 			return "Master";
 		}
+	}
+	
+	public static final String getDifficultyName(int difficulty) {
+		ConfigurationSection mem = getChallengeConfig();
+		return mem.getString("difficulty.".concat(Integer.toString(difficulty)).concat(".name"), getDefaultDifficultyName(difficulty));
 	}
 	
 	/** @param type
@@ -1469,10 +1973,14 @@ public class Challenge {
 		return (type == CompletionType.FIRST ? this.firstRewards : this.repeatRewards).rewardCommands;
 	}
 	
-	/** @param player The player to check
+	/** @param offlinePlayer The player to check
 	 * @return A list containing the items that this player needs to get before
 	 *         they can complete this challenge */
-	public final List<ItemStack> getRemainingRequiredItems(Player player) {
+	public final List<ItemStack> getRemainingRequiredItems(OfflinePlayer offlinePlayer) {
+		if(!offlinePlayer.isOnline()) {
+			return null;
+		}
+		Player player = offlinePlayer.getPlayer();
 		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		ArrayList<ItemStack> requiredItems = new ArrayList<>();
 		for(ItemStack required : info.requiredItems) {
@@ -1526,14 +2034,21 @@ public class Challenge {
 	/** @param player The player to check
 	 * @return Whether or not the player has all of the required items in order
 	 *         to complete this challenge */
-	public boolean hasRequiredItems(Player player) {
+	public boolean hasRequiredItems(OfflinePlayer player) {
+		if(!player.isOnline()) {
+			return false;
+		}
 		return this.getRemainingRequiredItems(player).isEmpty();
 	}
 	
-	/** @param player The player to check
+	/** @param offlinePlayer The player to check
 	 * @return A list of the blocks that this player still has to obtain before
 	 *         they can complete this challenge */
-	public final List<ItemStack> getRemainingRequiredBlocks(Player player) {
+	public final List<ItemStack> getRemainingRequiredBlocks(OfflinePlayer offlinePlayer) {
+		if(!offlinePlayer.isOnline()) {
+			return null;
+		}
+		Player player = offlinePlayer.getPlayer();
 		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		ArrayList<ItemStack> requiredBlocks = new ArrayList<>();
 		for(ItemStack required : info.requiredBlocks) {
@@ -1603,14 +2118,17 @@ public class Challenge {
 	 * @return Whether or not the player has all of the required blocks in order
 	 *         to complete this challenge. The blocks may either be in the
 	 *         player's inventory, or placed anywhere on their island */
-	public boolean hasRequiredBlocks(Player player) {
+	public boolean hasRequiredBlocks(OfflinePlayer player) {
+		if(!player.isOnline()) {
+			return false;
+		}
 		return this.getRemainingRequiredBlocks(player).isEmpty();
 	}
 	
 	/** @param player The player to check
 	 * @return The remaining amount of level(s) that this player needs to obtain
 	 *         before they can complete this challenge */
-	public double getRemainingRequiredLevel(Player player) {
+	public double getRemainingRequiredLevel(OfflinePlayer player) {
 		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		Island island = Island.getMainIslandFor(player);
 		return this.hasRequiredLevel(player) ? 0 : (island == null ? -1 : info.requiredLevel - island.getLevel());
@@ -1618,7 +2136,7 @@ public class Challenge {
 	
 	/** @param player The player whose Island will be checked
 	 * @return Whether or not the player's Island is of the required level */
-	public boolean hasRequiredLevel(Player player) {
+	public boolean hasRequiredLevel(OfflinePlayer player) {
 		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		Island island = Island.getMainIslandFor(player);
 		if(island != null) {
@@ -1630,7 +2148,7 @@ public class Challenge {
 	/** @param player The player to check
 	 * @return Whether or not the given player has completed this challenge
 	 *         before */
-	public final boolean hasCompleted(Player player) {
+	public final boolean hasCompleted(OfflinePlayer player) {
 		Island island = Island.getMainIslandFor(player);
 		return island == null ? false : island.hasMemberCompleted(player, this);
 	}
@@ -1638,6 +2156,9 @@ public class Challenge {
 	/** @param player The player to check
 	 * @return Whether or not the player can complete this challenge */
 	public boolean canComplete(Player player) {
+		if(!this.isRepeatable() && this.hasCompleted(player)) {
+			return false;
+		}
 		ChallengeInfo info = this.hasCompleted(player) ? this.repeatRewards : this.firstRewards;
 		Island island = Island.getMainIslandFor(player);
 		boolean repeatCheck = this.isRepeatable() ? true : !island.hasMemberCompleted(player, this);
@@ -1701,7 +2222,7 @@ public class Challenge {
 	public boolean complete(Player player) {
 		if(this.canComplete(player)) {
 			int tier = this.difficulty;
-			boolean completedTier = Challenge.hasCompletedTier(player, tier, false);
+			boolean completedTier = Challenge.hasCompletedDifficulty(player, tier, false);
 			if(!ChallengeCompleteEvent.fire(player, this).isCancelled()) {
 				this.takeItems(player);
 				this.reward(player);
@@ -1711,9 +2232,9 @@ public class Challenge {
 				}
 				
 				Main.sendDebugMsg(player, "completedTier_Before: ".concat(Boolean.toString(completedTier)));
-				if(!completedTier && Challenge.hasCompletedTier(player, tier, false)) {
+				if(!completedTier && Challenge.hasCompletedDifficulty(player, tier, false)) {
 					Main.sendDebugMsg(player, "completedTier_After: true");
-					ChallengeTierCompleteEvent completeTierEvent = new ChallengeTierCompleteEvent(this, !Challenge.hasCompletedTier(player, tier, true), player);
+					ChallengeTierCompleteEvent completeTierEvent = new ChallengeTierCompleteEvent(this, !Challenge.hasCompletedDifficulty(player, tier, true), player);
 					Main.pluginMgr.callEvent(completeTierEvent);
 					Main.sendDebugMsg(player, "called event ChallengeTierCompleteEvent!");
 				} else {

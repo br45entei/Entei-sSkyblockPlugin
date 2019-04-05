@@ -49,3 +49,60 @@ commands:
 #    usage: "/enchant <player> <enchantment ID> [level] [force]"
 #    aliases: [ue]
   
+
+permissions:
+  skyblock.*:
+    children:
+      skyblock.use:
+        description: "Allows players to use normal skyblock commands"
+        default: false
+      skyblock.dev:
+        description: "Allows the use of semi-administrative commands as well as developer commands"
+      skyblock.admin:
+        description: "Allows the use of administrative commands"
+        default: op
+      skyblock.buildAnywhere:
+        description: "Allows players to build anywhere in the skyworld worlds"
+      skyblock.chest:
+        description: "Allows players to use an extra island chest"
+        children:
+          skyblock.chest.slotSize:
+            description: "[Not a permission] Allows players to use an extra island chest whose inventory is of a certain size; append a dot and then the size of the inventory to use this; size must be a multiple of 9. between 9 and 54 inclusive."
+            children:
+              skyblock.chest.slotSize.9:
+                description: "Allows players to use an extra island chest whose inventory has only 9 slots"
+              skyblock.chest.slotSize.18:
+                description: "Allows players to use an extra island chest whose inventory has only 18 slots"
+              skyblock.chest.slotSize.27:
+                description: "Allows players to use an extra island chest whose inventory has 27 slots; the size of a chest(this one is the default used if no slotSize permission nodes are set)"
+              skyblock.chest.slotSize.36:
+                description: "Allows players to use an extra island chest whose inventory has 36 slots; the size of a player's inventory"
+              skyblock.chest.slotSize.45:
+                description: "Allows players to use an extra island chest whose inventory has a whopping 45 slots"
+              skyblock.chest.slotSize.54:
+                description: "Allows players to use an extra island chest whose inventory has 54 slots; the size of a double chest"
+      skyblock.gamemode:
+        default: 
+        children:
+          skyblock.gamemode.survival:
+            description: "[Not a permission] Allows players to use survival mode in skyworld(this gamemode is not prevented in the plugin)"
+            default: true
+          skyblock.gamemode.creative:
+            description: "Allows players to use creative mode in skyworld(if not allowed, they will be prevented from switching to this gamemode while in any of the skyworlds)"
+            default: op
+          skyblock.gamemode.adventure:
+            description: "Allows players to use adventure mode in skyworld(if not allowed, they will be prevented from switching to this gamemode while in any of the skyworlds)"
+            default: op
+          skyblock.gamemode.spectator:
+            description: "Allows players to use spectator mode in skyworld(if not allowed, they will be prevented from switching to this gamemode while in any of the skyworlds)"
+            default: op
+      skyblock.challenge:
+        children:
+          skyblock.challenge.manage:
+            description: "Allows players to create, delete, and edit challenges, as well as edit other players' challange completion states"
+          skyblock.challenge.showAll:
+            description: "Allows players to view all of the challenges, regardless of whether or not they have unlocked them"
+        
+      
+    
+  

@@ -4,6 +4,7 @@ import com.gmail.br45entei.enteisSkyblock.challenge.Challenge;
 import com.gmail.br45entei.enteisSkyblock.challenge.Challenge.ChallengeCommand;
 import com.gmail.br45entei.enteisSkyblock.event.ChallengeCompleteEvent;
 import com.gmail.br45entei.enteisSkyblock.event.ChallengeTierCompleteEvent;
+import com.gmail.br45entei.enteisSkyblock.event.listeners.AutomaticInventoryListener;
 import com.gmail.br45entei.enteisSkyblock.event.listeners.DamageEventListeners;
 import com.gmail.br45entei.enteisSkyblock.main.Island.InvitationResult;
 import com.gmail.br45entei.enteisSkyblock.main.Island.JoinRequestResult;
@@ -43,6 +44,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
@@ -81,7 +83,6 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.craftbukkit.v1_13_R2.block.CraftBlockState;
 import org.bukkit.craftbukkit.v1_13_R2.block.impl.CraftPortal;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
@@ -93,20 +94,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.Villager.Profession;
-import org.bukkit.event.Event.Result;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockBurnEvent;
-import org.bukkit.event.block.BlockFadeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
-import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.LeavesDecayEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
@@ -200,6 +196,26 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		player.sendMessage(ChatColor.GREEN.toString().concat("[Entei's Skyblock] Skyblock debug mode is now: ").concat(getDebugMode(player) ? ChatColor.DARK_GREEN.toString().concat("enabled") : ChatColor.DARK_GREEN.toString().concat("disabled")));
 	}
 	
+	public static final void sendDebugMsg(Player player, String message) {
+		sendDebugMsg((CommandSender) player, message);
+	}
+	
+	public static final void sendDebugMsg(Player player, String[] messages) {
+		sendDebugMsg((CommandSender) player, messages);
+	}
+	
+	public static final void sendDebugMsg(OfflinePlayer player, String message) {
+		if(player.isOnline()) {
+			sendDebugMsg((CommandSender) player.getPlayer(), message);
+		}
+	}
+	
+	public static final void sendDebugMsg(OfflinePlayer player, String[] messages) {
+		if(player.isOnline()) {
+			sendDebugMsg((CommandSender) player.getPlayer(), messages);
+		}
+	}
+	
 	public static final void sendDebugMsg(CommandSender sender, String message) {
 		if(sender.hasPermission("skyblock.dev") && (sender instanceof Player ? getDebugMode((Player) sender) : true)) {
 			sender.sendMessage("[ESB DEBUG] ".concat(message));
@@ -260,7 +276,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		case REPEATING_COMMAND_BLOCK:
 		case VOID_AIR:
 			return true;
-		//$CASES-OMITTED$
+			//$CASES-OMITTED$
 		default:
 			return false;
 		}
@@ -382,13 +398,16 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		if(item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
 			return item.getItemMeta().getDisplayName();
 		}
+		String name = Main.capitalizeFirstLetterOfEachWord(item.getType().name().toLowerCase(), '_', ' ');
 		try {
-			return getI18NDisplayName(item);//item.getI18NDisplayName();
+			name = getI18NDisplayName(item);//item.getI18NDisplayName();
 		} catch(NoSuchMethodError ignored) {
-			return capitalizeFirstLetterOfEachWord(item.getType().name().toLowerCase(), '_', ' ');
 		} catch(Throwable ignored) {
-			return capitalizeFirstLetterOfEachWord(item.getType().name().toLowerCase(), '_', ' ');
 		}
+		if(name.equals("Music Disk") && item.getType().name().startsWith("MUSIC_DISC_")) {
+			name = ChatColor.AQUA.toString().concat("Music Disk - ").concat(Main.capitalizeFirstLetterOfEachWord(name.substring("MUSIC_DISC_".length()).toLowerCase(), '_', ' '));
+		}
+		return name;
 	}
 	
 	public static final String limitDecimalToNumberOfPlaces(double d, int places) {
@@ -408,7 +427,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	}
 	
 	public static final String locationToString(Location location, int decimalPlaces, boolean showYawAndPitch, boolean showWorld) {
-		return (showWorld ? "world=".concat(location.getWorld() == null ? "null" : location.getWorld().getName()) : "").concat("X=").concat(limitDecimalToNumberOfPlaces(location.getX(), decimalPlaces)).concat(", Y=").concat(limitDecimalToNumberOfPlaces(location.getY(), decimalPlaces)).concat(", Z=").concat(limitDecimalToNumberOfPlaces(location.getX(), decimalPlaces)).concat(!showYawAndPitch ? "" : ", Yaw=".concat(limitDecimalToNumberOfPlaces(location.getYaw(), decimalPlaces)).concat(", Pitch=").concat(limitDecimalToNumberOfPlaces(location.getPitch(), decimalPlaces)));
+		return (showWorld ? "world=".concat(location.getWorld() == null ? "null" : location.getWorld().getName()) : "").concat("X=").concat(limitDecimalToNumberOfPlaces(location.getX(), decimalPlaces)).concat(", Y=").concat(limitDecimalToNumberOfPlaces(location.getY(), decimalPlaces)).concat(", Z=").concat(limitDecimalToNumberOfPlaces(location.getZ(), decimalPlaces)).concat(!showYawAndPitch ? "" : ", Yaw=".concat(limitDecimalToNumberOfPlaces(location.getYaw(), decimalPlaces)).concat(", Pitch=").concat(limitDecimalToNumberOfPlaces(location.getPitch(), decimalPlaces)));
 	}
 	
 	/** @return The instance of this plugin */
@@ -764,18 +783,17 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		return config;
 	}
 	
-	public static final boolean isSafeForTeleporting(Location location) {
-		return location.getBlock().getRelative(BlockFace.DOWN).getType().isSolid() && !location.getBlock().getType().isSolid() && !location.getBlock().getRelative(0, 1, 0).getType().isSolid() && !location.getBlock().getRelative(0, 2, 0).getType().isSolid();
-	}
-	
 	public static final ConcurrentHashMap<String, Long> lastTeleportTimes = new ConcurrentHashMap<>(),
 			playerLoginTimes = new ConcurrentHashMap<>();
 	
-	private static final boolean isBlockSafeForTeleportingInto(Block block) {
-		if(block.getType() == Material.WATER) {
-			return true;
-		}
-		return isSafeForTeleporting(block.getLocation());
+	public static final boolean isTeleportCooldownInEffectFor(Player player) {
+		Long teleportCooldownEndTime = lastTeleportTimes.get(player.getUniqueId().toString());
+		return teleportCooldownEndTime != null && System.currentTimeMillis() - teleportCooldownEndTime.longValue() < 0;
+	}
+	
+	public static final long getTeleportCooldownRemainingFor(Player player) {
+		Long teleportCooldownEndTime = lastTeleportTimes.get(player.getUniqueId().toString());
+		return teleportCooldownEndTime == null ? -1L : System.currentTimeMillis() - teleportCooldownEndTime.longValue();
 	}
 	
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -791,6 +809,17 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		if(!event.isCancelled()) {
 			lastTeleportTimes.put(player.getUniqueId().toString(), Long.valueOf(System.currentTimeMillis() + 10000L));
 		}
+	}
+	
+	public static final boolean isSafeForTeleporting(Location location) {
+		return location.getBlock().getRelative(BlockFace.DOWN).getType().isSolid() && !location.getBlock().getType().isSolid() && !location.getBlock().getRelative(0, 1, 0).getType().isSolid() && !location.getBlock().getRelative(0, 2, 0).getType().isSolid();
+	}
+	
+	private static final boolean isBlockSafeForTeleportingInto(Block block) {
+		if(block.getType() == Material.WATER) {
+			return true;
+		}
+		return isSafeForTeleporting(block.getLocation());
 	}
 	
 	/** Teleports the player to the given location. If the player is riding a
@@ -841,8 +870,100 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	/** {@inheritDoc} */
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd, String command, String[] args) {
+		command = command.startsWith("enteisskyblock:") ? command.substring("enteisskyblock:".length()) : command;
+		
 		if(CommandConfirmation.onCommand(sender, cmd, command, args)) {
 			return true;
+		}
+		if(command.equalsIgnoreCase("enteisskyblock") || command.equalsIgnoreCase("esb")) {
+			if(args.length >= 1 && args[0].equals("reset")) {
+				if(!sender.isOp()) {
+					sender.sendMessage("Unknown command. Type \"/help\" for help.");
+					return true;
+				}
+				if(args.length == 2 || args.length == 3) {
+					String envStr = args[1];
+					Environment env = null;
+					if(envStr.equals("normal")) {
+						env = Environment.NORMAL;
+					} else if(envStr.equals("nether")) {
+						env = Environment.NORMAL;
+					} else if(envStr.equals("end") || envStr.equals("the_end")) {
+						env = Environment.NORMAL;
+					}
+					if(env != null) {
+						boolean backup = true;
+						String cmdStr = command.concat(" ").concat(args[0]).concat(" ").concat(args[1]).concat(" ");
+						if(args.length == 3) {
+							backup = args[2].equalsIgnoreCase("true");
+						}
+						cmdStr = cmdStr.concat(backup ? "true" : "false").concat(" confirm");
+						sender.sendMessage(ChatColor.RED.toString().concat(" /!\\  Warning! You are about to reset an entire world!\n/__\\ Type \"").concat(ChatColor.WHITE.toString()).concat(cmdStr).concat(ChatColor.RED.toString()).concat("\" to confirm this action!"));
+						sender.sendMessage(ChatColor.RED.toString().concat("You have chosen to ").concat(backup ? "" : "").concat(" the world upon being unloaded. Please make sure this is correct."));
+						final Environment ENV = env;
+						final boolean BACKUP = backup;
+						Runnable codeToConfirm = () -> {
+							World world = ENV == Environment.NORMAL ? GeneratorMain.getSkyworld() : (ENV == Environment.NETHER ? GeneratorMain.getSkyworldNether() : GeneratorMain.getSkyworldTheEnd());
+							if(GeneratorMain.resetSkyworld(ENV, BACKUP)) {
+								sender.sendMessage(ChatColor.YELLOW.toString().concat("Successfully reset world \"").concat(ChatColor.WHITE.toString()).concat(world.getName()).concat(ChatColor.YELLOW.toString()).concat("\"."));
+								if(BACKUP) {
+									sender.sendMessage(ChatColor.GREEN.toString().concat("The old world's folder should be backed up in the server folder, with the world folder's name appended with an underscore and an integer(determined by how many times the world has been backed up)."));
+								}
+							} else {
+								sender.sendMessage(ChatColor.YELLOW.toString().concat("Unable to reset world \"").concat(ChatColor.WHITE.toString()).concat(world.getName()).concat(ChatColor.YELLOW.toString()).concat("\". Is the server holding it hostage?"));
+							}
+						};
+						String[] cmdArgs = new String[args.length + 1];
+						cmdArgs[0] = args[0];
+						cmdArgs[1] = args[1];
+						cmdArgs[2] = backup ? "true" : "false";
+						cmdArgs[3] = "confirm";
+						CommandConfirmation.addConfirmationFor(sender, codeToConfirm, MINUTE, command, cmdArgs, true);
+						return true;
+					}
+				}
+				sender.sendMessage(ChatColor.DARK_RED.toString().concat("Usage: /esb reset {normal|nether|end} [backupWorld: true|false]"));
+				return true;
+			}
+		}
+		
+		if(command.equalsIgnoreCase("iw") || command.equalsIgnoreCase("islandWarp")) {
+			command = "island";
+			String[] tmp = args;
+			args = new String[tmp.length + 1];
+			args[0] = "warp";
+			for(int i = 1; i < args.length; i++) {
+				args[i] = tmp[i - 1];
+			}
+		}
+		if((command.equalsIgnoreCase("ih") || command.equalsIgnoreCase("hi") || command.equalsIgnoreCase("ig")) && args.length >= 0) {
+			command = "island";
+			String[] mkArgs = new String[1 + args.length];
+			mkArgs[0] = "home";
+			for(int i = 1; i < mkArgs.length && i - 1 < args.length; i++) {
+				mkArgs[i] = args[i - 1];
+			}
+			args = mkArgs;
+		}
+		if((command.equalsIgnoreCase("island") || command.equalsIgnoreCase("is")) && args.length >= 1 && args[0].equalsIgnoreCase("unlock")) {
+			command = "island";
+			String[] mkArgs = new String[2 + (args.length - 1)];
+			mkArgs[0] = "lock";
+			mkArgs[1] = "off";
+			for(int i = 2; i < mkArgs.length && i - 2 < args.length; i++) {
+				mkArgs[i] = args[i - 2];
+			}
+			args = mkArgs;
+		}
+		cmd = cmd == null ? Main.getPlugin().getCommand(command) : cmd;
+		
+		Player user = sender instanceof Player ? (Player) sender : null;
+		if(cmd != null && user != null) {
+			if(!user.hasPermission("skyblock.use")) {
+				sender.sendMessage(ChatColor.YELLOW.toString().concat("You do not currently have permission to use skyblock features."));
+				sender.sendMessage(ChatColor.YELLOW.toString().concat("Did you read the /rules yet?"));
+				return true;
+			}
 		}
 		if(Challenge.ChallengeCommand.isChallengeCommand(command)) {
 			return Challenge.ChallengeCommand.onCommand(sender, command, args);
@@ -850,8 +971,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		/*if(UnsafeEnchantCommand.isUnsafeEnchantCommand(command)) {
 			return UnsafeEnchantCommand.onCommand(sender, command, args);
 		}*/
-		command = command.startsWith("enteisskyblock:") ? command.substring("enteisskyblock:".length()) : command;
-		Player user = sender instanceof Player ? (Player) sender : null;
+		
 		if(command.equalsIgnoreCase("enteisskyblock") || command.equalsIgnoreCase("esb")) {
 			if(args.length == 0) {
 				sender.sendMessage(ChatColor.GREEN.toString().concat("[Entei's Skyblock] Version ".concat(this.getDescription().getVersion())));
@@ -1042,39 +1162,11 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			}
 			return false;
 		}
-		if(command.equalsIgnoreCase("iw") || command.equalsIgnoreCase("islandWarp")) {
-			command = "island";
-			String[] tmp = args;
-			args = new String[tmp.length + 1];
-			args[0] = "warp";
-			for(int i = 1; i < args.length; i++) {
-				args[i] = tmp[i - 1];
-			}
-		}
-		if((command.equalsIgnoreCase("ih") || command.equalsIgnoreCase("hi") || command.equalsIgnoreCase("ig")) && args.length >= 0) {
-			command = "island";
-			String[] mkArgs = new String[1 + args.length];
-			mkArgs[0] = "home";
-			for(int i = 1; i < mkArgs.length && i - 1 < args.length; i++) {
-				mkArgs[i] = args[i - 1];
-			}
-			args = mkArgs;
-		}
-		if((command.equalsIgnoreCase("island") || command.equalsIgnoreCase("is")) && args.length >= 1 && args[0].equalsIgnoreCase("unlock")) {
-			command = "island";
-			String[] mkArgs = new String[2 + (args.length - 1)];
-			mkArgs[0] = "lock";
-			mkArgs[1] = "off";
-			for(int i = 2; i < mkArgs.length && i - 2 < args.length; i++) {
-				mkArgs[i] = args[i - 2];
-			}
-			args = mkArgs;
-		}
 		if(command.equalsIgnoreCase("plotworld") || command.equalsIgnoreCase("creative")) {
 			if(user != null) {
 				World world = Main.server.getWorld("plotworld");
 				if(world != null) {
-					safeTeleport(user, new Location(world, 0.5, 64, 0.5));
+					safeTeleport(user, world.getSpawnLocation());//new Location(world, 0.5, 64, 0.5));
 					return true;
 				}
 			}
@@ -1219,6 +1311,9 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					user.closeInventory();
 					if(island == null) {
 						String type = GeneratorMain.island_schematic.equalsIgnoreCase("none") ? "normal" : "schematic";
+						if(type.equals("schematic")) {//XXX Hard coded override for /is create!
+							args = new String[] {"create", "schematic", "random"};
+						}
 						if(args.length >= 2 && (type.equalsIgnoreCase("normal") ? false : (!args[1].equalsIgnoreCase("schematic") && (args.length >= 3 ? !args[2].equalsIgnoreCase("nearspawn") : true)))) {//XXX Disabled island type and position selection
 							sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " create" + ChatColor.DARK_GREEN + ": Creates a new island for you to play on");
 							return true;
@@ -1263,6 +1358,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							sender.sendMessage(ChatColor.DARK_RED + "ERROR: Unknown/unimplemented island type provided: " + type);
 							throw new IllegalStateException("Unknown/unimplemented island type provided: " + type);
 						}
+						Main.saveAll();
 						if(!type.equalsIgnoreCase("schematic")) {
 							safeTeleport(user, island.getSpawnLocation());
 						}
@@ -1839,7 +1935,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " untrust {playerName|list}" + ChatColor.DARK_GREEN + ": Untrust the given player on your island.");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " lock [true/on|false/off]" + ChatColor.DARK_GREEN + ": Set or view whether or not your island is locked to non-members");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " biome {biome}" + ChatColor.DARK_GREEN + ": Set or view your island's biome");
-					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " {mobs|animals} [on|off]" + ChatColor.DARK_GREEN + ": Enable/disable hostile mob/animal spawning for the island");
+					//sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " {mobs|animals} [on|off]" + ChatColor.DARK_GREEN + ": Enable/disable hostile mob/animal spawning for the island");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " leave" + ChatColor.GREEN + ": Allows you to leave the island. If you are the owner, you'll need to pass in a fellow member's name here so that they can be the new owner");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " restart" + ChatColor.YELLOW + ": Allows you to restart the island if you are the owner. All of the island's blocks will be wiped and the island will be regenerated back to its' initial state.");
 					sender.sendMessage(ChatColor.WHITE + "/" + command + ChatColor.RESET + ChatColor.WHITE + " delete" + ChatColor.RED + ": Allows you to completely delete the island if you are the owner. All of the island's blocks will be wiped, and all of its' members(including you) will have their inventories wiped as well.");
@@ -1858,7 +1954,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							switch(slot) {
 							case 0:
 								if(!GeneratorMain.island_schematic.equalsIgnoreCase("none")) {
-									Main.server.dispatchCommand(sender, "island create schematic nearspawn");
+									Main.server.dispatchCommand(sender, "island create schematic random");
 								} else {
 									Main.server.dispatchCommand(sender, "island create normal nearspawn");
 								}
@@ -2004,7 +2100,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 									Main.server.dispatchCommand(sender, "island delete");
 								}
 								break;
-							//TODO
+								//TODO
 							default:
 								break;
 							}
@@ -2314,7 +2410,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					island.getNextRestartTime();
 					island.getOnlineJoinRequests();
 					island.getPlayersOnIsland().size();
-					sender.sendMessage(ChatColor.DARK_RED + "Brian" + ChatColor.BLACK + "_" + ChatColor.GOLD + "Entei" + ChatColor.WHITE + " stopped coding this command half-way through and started working on something else. Go bug him about it.");
+					//sender.sendMessage(ChatColor.DARK_RED + "Brian" + ChatColor.BLACK + "_" + ChatColor.GOLD + "Entei" + ChatColor.WHITE + " stopped coding this command half-way through and started working on something else. Go bug him about it.");
 					return true;
 				}
 				if(args.length >= 1 && args[0].equalsIgnoreCase("update")) {
@@ -2576,12 +2672,21 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + "/dev setOwner {player}" + ChatColor.YELLOW + " - Sets the owner of the island nearset you to the player that you specify.");
 						return true;
 					}
+					OfflinePlayer newOwner = Main.server.getOfflinePlayer(args[1]);
 					Island island = Island.getIslandNearest(user.getLocation());
+					if(island == null && !Main.isInSpawn(user.getLocation())) {
+						island = Island.getOrCreateIslandNearest(user.getLocation());
+						if(island.calculateLevel() == 0x0.0p0) {
+							island.unregister();
+							island = null;
+						} else {
+							island.setOwner(newOwner);
+						}
+					}
 					if(island == null) {
 						sender.sendMessage(ChatColor.YELLOW + "You are not standing on or near any islands. Move closer to the target island and try again.");
 						return true;
 					}
-					OfflinePlayer newOwner = Main.server.getOfflinePlayer(args[1]);
 					if(args.length <= 2) {
 						Island check = Island.getMainIslandFor(newOwner);
 						if(check != null && check != island) {
@@ -3172,8 +3277,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		/*System.out.println(capitalizeFirstLetterOfEachWord("lava buckets r cool"));
 		System.out.println(capitalizeFirstLetterOfEachWord("SMOOTH_STONE".toLowerCase(), '_', ' '));
 		
-		convertMaterialValuesFromUSkyblock(new File(new File(System.getProperty("user.dir") + File.separator + "plugins" + File.separator + "uSkyblock"), "levelConfig.yml"));
-		*/
+		convertMaterialValuesFromUSkyblock(new File(new File(System.getProperty("user.dir") + File.separator + "plugins" + File.separator + "uSkyBlock"), "levelConfig.yml"));
+		 */
 	}
 	
 	/** @param str The String to capitalize each word's first letter of
@@ -3563,6 +3668,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 	}
 	
+	private volatile AutomaticInventoryListener autoInvListener = null;
 	private volatile DamageEventListeners entityDmgListener = null;
 	private static volatile Player test_player;
 	
@@ -3577,6 +3683,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			HandlerList.unregisterAll(this.entityDmgListener);
 			this.entityDmgListener = null;
 		}
+		pluginMgr.registerEvents((this.autoInvListener = new AutomaticInventoryListener()), this);
 		pluginMgr.registerEvents((this.entityDmgListener = new DamageEventListeners()), this);
 		//if(getWorldEdit() != null) {
 		//	HandlerList.unregisterAll(getWorldEdit());//prevents "/tell" server crash ... :/
@@ -3665,100 +3772,15 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	}
 	
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-	public static final void onBlockSpreadEvent(BlockSpreadEvent event) {
-		if(event.getBlock().getWorld() != GeneratorMain.getSkyworld() && event.getBlock().getWorld() != GeneratorMain.getSkyworldNether()) {
-			return;
-		}
-		Block spreading = event.getBlock();
-		Island island = Island.getIslandContaining(spreading.getLocation());
-		if(island != null) {
-			if(event.isCancelled()) {
-				event.setCancelled(false);
-			}
-		} else {
-			if(event.getNewState().getType() != Material.WATER && event.getNewState().getType() != Material.LAVA) {
-				event.setCancelled(!isInSpawn(spreading.getLocation()));
-				if(event.getNewState().getType() == Material.FIRE) {
-					event.setCancelled(true);
-				}
-			}
-		}
-	}
-	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-	public static final void onBlockBurnEvent(BlockBurnEvent event) {
-		if(event.getBlock().getWorld() != GeneratorMain.getSkyworld() && event.getBlock().getWorld() != GeneratorMain.getSkyworldNether()) {
-			return;
-		}
-		//Block igniterBlock = event.getIgnitingBlock();
-		Block burned = event.getBlock();
-		Island island = Island.getIslandContaining(burned.getLocation());
-		if(island != null) {
-			if(event.isCancelled()) {
-				event.setCancelled(false);
-			}
-		} else {
-			event.setCancelled(true);
-		}
-	}
-	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-	public static final void onBlockIgniteEvent(BlockIgniteEvent event) {
-		if(event.getBlock().getWorld() != GeneratorMain.getSkyworld() && event.getBlock().getWorld() != GeneratorMain.getSkyworldNether()) {
-			return;
-		}
-		//Player igniter = event.getPlayer();
-		//Block igniterBlock = event.getIgnitingBlock();
-		Block ignited = event.getBlock();
-		Island island = Island.getIslandContaining(ignited.getLocation());
-		if(island != null) {
-			if(event.isCancelled()) {
-				event.setCancelled(false);
-			}
-		} else {
-			event.setCancelled(!isInSpawn(ignited.getLocation()));
-			Player pyromaniac = event.getPlayer();
-			if(pyromaniac != null) {// && event.getCause() == IgniteCause.FLINT_AND_STEEL) {
-				if(!pyromaniac.hasPermission("skyblock.admin")) {
-					event.setCancelled(true);
-					pyromaniac.sendMessage(ChatColor.RED.toString().concat("You do not have permission to set fire to blocks outside of your island."));
-					return;
-				}
-				event.setCancelled(false);
-			}
-			return;
-		}
-	}
-	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-	public static final void onBlockFadeEvent(BlockFadeEvent event) {
-		if(event.getBlock().getWorld() != GeneratorMain.getSkyworld() && event.getBlock().getWorld() != GeneratorMain.getSkyworldNether()) {
-			return;
-		}
-		Block fading = event.getBlock();
-		Material newType = event.getNewState() == null ? null : event.getNewState().getType();
-		if(fading != null && fading.getType() != newType) {
-			Island island = Island.getIslandContaining(fading.getLocation());
-			if(island != null) {
-				if(event.isCancelled()) {
-					event.setCancelled(false);
-				}
-			} else {
-				event.setCancelled(event.getBlock().getWorld() != GeneratorMain.getSkyworldNether());
-			}
-		}
-	}
-	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
 	public static final void onInventoryClickEvent(InventoryClickEvent event) {
 		Player clicker = event.getWhoClicked() instanceof Player ? (Player) event.getWhoClicked() : null;
 		Inventory inv = event.getClickedInventory();
 		String title = event.getView().getTitle();
+		final int slot = event.getRawSlot();
 		if(clicker != null && title.equals(Challenge.getChallengeScreenTitle())) {
 			if((inv == event.getView().getBottomInventory() && event.getClick().isShiftClick()) || (inv == event.getView().getTopInventory())) {
 				event.setCancelled(true);
 			}
-			int slot = event.getRawSlot();
 			Challenge selected = Challenge.getChallengeBySlot(slot);
 			if(selected != null) {
 				clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
@@ -3796,12 +3818,15 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 				}
 			} else {
-				if(slot == Challenge.getChallengeScreenSize() - 1) {
+				/*if(slot == Challenge.getChallengeScreenSize() - 1) {
 					event.setCancelled(true);
 					clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
 					//clicker.closeInventory();
 					//clicker.updateInventory();
 					Main.server.dispatchCommand(clicker, "island");
+				}*/
+				if(handlePageNavigation(clicker, inv, slot, false, false, false, event)) {
+					return;
 				}
 			}
 		} else if(clicker != null && ChatColor.stripColor(title.trim()).trim().endsWith("'s Challenges")) {
@@ -3813,17 +3838,18 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				event.setCancelled(true);
 				InventoryHolder holder = inv.getHolder();
 				if(holder instanceof Player) {
+					event.setCancelled(slot >= 0 && slot < inv.getSize() - 9);
 					final Player player = (Player) holder;
 					Island island = Island.getMainIslandFor(player);
 					if(island == null) {
 						clicker.sendMessage(ChatColor.RED.toString().concat("Unable to toggle challenge state - this player doesn't have a main island where challenge information can be stored."));
 						return;
 					}
-					int slot = event.getRawSlot();
 					Challenge selected = Challenge.getChallengeBySlot(slot);
 					if(selected != null) {
 						int timesCompletedChallenge = island.getNumTimesChallengeCompletedBy(player.getUniqueId(), selected.getName());
 						if(event.getClick() == ClickType.LEFT) {
+							clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
 							if(island.hasMemberCompleted(player, selected)) {
 								island.setUncompleted(player, selected);
 							} else {
@@ -3834,6 +3860,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 							boolean increment = event.getClick() == ClickType.MIDDLE || event.getClick() == ClickType.SHIFT_LEFT;
 							boolean decrement = event.getClick() == ClickType.RIGHT || event.getClick() == ClickType.SHIFT_RIGHT;
 							if(increment || decrement) {
+								clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
 								int beforeCount = island.getNumTimesChallengeCompletedBy(player, selected);
 								(increment ? island.incrementNumTimesChallengeCompletedBy(player, selected) : island.decrementNumTimesChallengeCompletedBy(player, selected)).toString();
 								int afterCount = island.getNumTimesChallengeCompletedBy(player, selected);
@@ -3854,9 +3881,95 @@ public strictfp class Main extends JavaPlugin implements Listener {
 						}, 2L);
 						return;
 					}
+					if(handlePageNavigation(clicker, inv, slot, false, false, true, event)) {
+						return;
+					}
 				}
 			}
+		} else if(clicker != null && title.equals(Challenge.getReviewChallengesTitle())) {
+			if((inv == event.getView().getBottomInventory() && event.getClick().isShiftClick())) {
+				event.setCancelled(true);
+				return;
+			}
+			if(inv == event.getView().getTopInventory()) {
+				event.setCancelled(slot >= 0 && slot < inv.getSize() - 9);
+				if(handlePageNavigation(clicker, inv, slot, false, true, false, event)) {
+					return;
+				}
+			}
+		} else if(clicker != null && title.equals(Challenge.getManageChallengesTitle())) {
+			if((inv == event.getView().getBottomInventory() && event.getClick().isShiftClick())) {
+				event.setCancelled(true);
+				return;
+			}
+			if(inv == event.getView().getTopInventory()) {
+				event.setCancelled(true);
+				if(handlePageNavigation(clicker, inv, slot, true, false, false, event)) {
+					return;
+				}
+				//TODO
+				clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
+			}
+			clicker.sendMessage(ChatColor.YELLOW.toString().concat("This screen hasn't been implemented yet, but it is being worked on. Sorry!"));
 		}
+	}
+	
+	private static final boolean handlePageNavigation(Player clicker, Inventory inv, int slot, boolean managing, boolean reviewing, boolean editingPlayer, Cancellable event) {
+		if(reviewing) {
+			
+			return false;
+		}
+		if(managing) {
+			
+			return false;
+		}
+		if(slot == inv.getSize() - 1 || slot == inv.getSize() - 9) {
+			event.setCancelled(true);
+			//clicker.closeInventory();
+			//clicker.updateInventory();
+			ItemStack item = inv.getItem(slot);
+			if(item != null && item.getType() != Material.AIR) {
+				if(item.getType() == Material.SIGN) {
+					if(item.hasItemMeta() && item.getItemMeta().hasDisplayName() && ChatColor.stripColor(item.getItemMeta().getDisplayName()).equals("Main menu")) {
+						clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
+						Main.server.dispatchCommand(clicker, "island");
+					} else {
+						//??? Check if the player managed to get an item stuck up in the top inv and return it to them(let them take the item, but not place one)
+						event.setCancelled(inv.getItem(slot) == null || inv.getItem(slot).getType() == Material.AIR);
+					}
+				} else if(item.getType() == Material.PAPER) {
+					if(item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+						int page = Challenge.getLastChallengeScreenPageFor(clicker, true);
+						String cmd;
+						if(editingPlayer) {
+							cmd = "challenge viewPlayer ".concat(((Player) inv.getHolder()).getName()).concat(" page ");
+						} else {
+							cmd = "challenge page ";
+						}
+						if(ChatColor.stripColor(item.getItemMeta().getDisplayName()).equals("Next page")) {
+							clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
+							Main.server.dispatchCommand(clicker, cmd.concat(Integer.toString(page + 1)));
+						} else if(ChatColor.stripColor(item.getItemMeta().getDisplayName()).equals("Previous page")) {
+							clicker.playSound(clicker.getLocation(), Sound.UI_BUTTON_CLICK, 3f, 1f);
+							Main.server.dispatchCommand(clicker, cmd.concat(Integer.toString(page - 1)));
+						} else {
+							//??? Check if the player managed to get an item stuck up in the top inv and return it to them(let them take the item, but not place one)
+							event.setCancelled(inv.getItem(slot) == null || inv.getItem(slot).getType() == Material.AIR);
+						}
+					} else {
+						//??? Check if the player managed to get an item stuck up in the top inv and return it to them(let them take the item, but not place one)
+						event.setCancelled(inv.getItem(slot) == null || inv.getItem(slot).getType() == Material.AIR);
+					}
+				} else {
+					//??? Check if the player managed to get an item stuck up in the top inv and return it to them(let them take the item, but not place one)
+					event.setCancelled(inv.getItem(slot) == null || inv.getItem(slot).getType() == Material.AIR);
+				}
+			}
+			return true;
+		}
+		//??? Check if the player managed to get an item stuck up in the top inv and return it to them(let them take the item, but not place one)
+		event.setCancelled(inv.getItem(slot) == null || inv.getItem(slot).getType() == Material.AIR);
+		return false;
 	}
 	
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -3881,7 +3994,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		Island island = event.getIsland();
 		Challenge challenge = event.getChallenge();
 		boolean fullyOrHalfway = event.didPlayerCompleteEntireTier();
-		String msg = ChatColor.WHITE + player.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + " has just completed " + (fullyOrHalfway ? "all " : "half ") + "of the " + ChatColor.WHITE + Challenge.getTierTitle(event.getTier()).concat("s") + ChatColor.RESET + ChatColor.GREEN + (fullyOrHalfway ? "" : ", and has unlocked the next tier(which is: " + ChatColor.WHITE + Challenge.getTierTitle(event.getTier() + 1).concat("s") + ChatColor.RESET + ChatColor.GREEN + ")") + "!";
+		String msg = ChatColor.WHITE + player.getDisplayName() + ChatColor.RESET + ChatColor.GREEN + " has just completed " + (fullyOrHalfway ? "all " : "half ") + "of the " + ChatColor.WHITE + Challenge.getDifficultyTitle(event.getTier()).concat("s") + ChatColor.RESET + ChatColor.GREEN + (fullyOrHalfway ? "" : (", and has unlocked the next ").concat(Challenge.challengeDifficultiesAreHalfPercentagedTiers() ? "tier" : "difficulty row").concat("(which is: ") + ChatColor.WHITE + Challenge.getDifficultyTitle(event.getTier() + 1).concat("s") + ChatColor.RESET + ChatColor.GREEN + ")") + "!";
 		if(island != null && island.hasMemberCompleted(player, challenge)) {
 			for(Player p : Main.server.getOnlinePlayers()) {
 				p.sendMessage(msg);
@@ -3897,86 +4010,17 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				Block down = event.getBlock().getRelative(BlockFace.DOWN);
 				if(down != null && !down.getType().isSolid()) {
 					event.setCancelled(true);
-				}
-			}
-		}
-	}
-	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-	public static final void onBlockBreakEvent(BlockBreakEvent event) {
-		Player player = event.getPlayer();
-		Location location = event.getBlock().getLocation();
-		Island island = Island.getIslandContaining(location);
-		if(Island.isInSkyworld(player) && (island == null || (!island.isMember(player)))) {
-			if(!player.hasPermission("skyblock.admin")) {
-				event.setCancelled(true);
-				if(location.getWorld() == GeneratorMain.getSkyworldTheEnd()) {
-					event.setCancelled(isInSpawn(location));
-				}
-				if(event.isCancelled()) {
-					player.sendMessage(ChatColor.RED + "You do not have permission to edit blocks outside of your island.");
-					return;
-				}
-			}
-		}
-		Block block = event.getBlock();
-		if(player.getGameMode() != GameMode.ADVENTURE && player.getGameMode() != GameMode.SURVIVAL) {
-			return;
-		}
-		ItemStack tool = null;
-		ItemStack hand = player.getInventory().getItemInMainHand();
-		ItemStack offHand = player.getInventory().getItemInOffHand();
-		if(hand != null && Enchantment.DURABILITY.canEnchantItem(hand)) {
-			tool = hand;
-		} else if(offHand != null && Enchantment.DURABILITY.canEnchantItem(offHand)) {
-			tool = offHand;
-		}
-		if((tool == null ? block.getType() != Material.WALL_SIGN && block.getType() != Material.SIGN : true)) {
-			Block up = block.getRelative(0, 1, 0);
-			Block down = block.getRelative(0, -1, 0);
-			Block down2 = block.getRelative(0, -2, 0);
-			Block left = block.getRelative(1, 0, 0);
-			Block right = block.getRelative(-1, 0, 0);
-			Block front = block.getRelative(0, 0, 1);
-			Block back = block.getRelative(0, 0, -1);
-			if(((up != null && (up.getType() == Material.LAVA || up.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
-					(down != null && (down.getType() == Material.LAVA || down.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
-					(left != null && (left.getType() == Material.LAVA || left.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
-					(right != null && (right.getType() == Material.LAVA || right.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
-					(front != null && (front.getType() == Material.LAVA || front.getType() == Material.LEGACY_STATIONARY_LAVA)) ||//
-					(back != null && (back.getType() == Material.LAVA || back.getType() == Material.LEGACY_STATIONARY_LAVA))) ||//
-					((down == null || (down.getType() == Material.WALL_SIGN || down.getType() == Material.SIGN || !down.getType().isSolid())) && (down2 == null || (down2.getType() == Material.WALL_SIGN || down2.getType() == Material.SIGN || !down2.getType().isSolid())))) {
-				
-				Collection<ItemStack> drops = null;
-				if(tool != null) {
-					drops = block.getDrops(tool);
-				} else {
-					drops = block.getDrops();
-				}
-				int expToDrop = event.getExpToDrop();
-				expToDrop = expToDrop == 0 ? getExpForBlock(block) : expToDrop;
-				if(expToDrop > 0) {
-					event.setExpToDrop(0);//event.setCancelled(true);
-					ExperienceOrb orb = dropExperience(player.getLocation(), expToDrop);
-					orb.setInvulnerable(true);
-					orb.setGravity(false);
-					location.getWorld().playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 3f, 1f);
-				}
-				if(drops != null) {
-					event.setDropItems(false);//event.setCancelled(true);
-					//event.getBlock().setType(Material.AIR, true);// Causes the player's tool to not take durability damage
-					if(!drops.isEmpty()) {
-						for(ItemStack drop : drops) {
-							Item item = location.getWorld().dropItem(player.getLocation(), drop);
-							item.setPickupDelay(0);
-							/*try {
-								item.setCanMobPickup(true);
-							} catch(NoSuchMethodError ignored) {
-							}*/
-							item.setTicksLived(1);
+					Main.scheduler.runTaskLater(getPlugin(), () -> {
+						for(Entity entity : event.getBlock().getWorld().getNearbyEntities(event.getBlock().getLocation(), 32, 32, 32, new Predicate<Entity>() {
+							@Override
+							public boolean test(Entity entity) {
+								return entity instanceof Player;
+							}
+						})) {
+							Player player = (Player) entity;
+							player.sendBlockChange(event.getBlock().getLocation(), event.getBlock().getBlockData());
 						}
-						location.getWorld().playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 3f, 1f + random.nextFloat() + random.nextFloat());
-					}
+					}, 2L);
 				}
 			}
 		}
@@ -4015,7 +4059,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		case STONE_BUTTON:
 		case LEGACY_WOOD_BUTTON:
 			return true;
-		//$CASES-OMITTED$
+			//$CASES-OMITTED$
 		default:
 			if(material.name().contains("_TRAPDOOR")) {
 				return true;
@@ -4065,9 +4109,9 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 	}
 	
-	protected static final SecureRandom random = new SecureRandom();
+	public static final SecureRandom random = new SecureRandom();
 	
-	private static final int getExpForBlock(Block block) {
+	public static final int getExpForBlock(Block block) {
 		if(block.getType().name().contains("_ORE")) {
 			Collection<ItemStack> drops = block.getDrops(new ItemStack(Material.DIAMOND_PICKAXE));
 			if(!drops.isEmpty() && drops.iterator().next().getType() != block.getType()) {//If the ore doesn't drop itself, then:
@@ -4175,6 +4219,79 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			location.getWorld().spawnParticle(Particle.BARRIER, location.add(0x0.0p0, 0.5, 0x0.0p0), 17);
 			location.getWorld().spawnParticle(Particle.BARRIER, location.add(0x0.0p0, 1, 0x0.0p0), 17);
 		}
+	}
+	
+	public static final boolean bpOff(CommandSender sender) {
+		if(Bukkit.getPluginManager().getPlugin("LuckPerms") != null) {
+			String msg = "Removing your staff permissions...";
+			ConsoleCommandSender console = Bukkit.getConsoleSender();
+			if(sender.hasPermission("group.owner")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove owner");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add owner_offduty");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.developer")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove developer");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add developer_offduty");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.admin")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove admin");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add admin_offduty");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.moderator")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove moderator");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add moderator_offduty");
+				sender.setOp(false);
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	
+	public static final boolean bpOn(CommandSender sender) {
+		if(Bukkit.getPluginManager().getPlugin("LuckPerms") != null) {
+			String msg = "Applying your staff permissions...";
+			ConsoleCommandSender console = Bukkit.getConsoleSender();
+			if(sender.hasPermission("group.owner")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove owner_offduty");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add owner");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.developer")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove developer_offduty");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add developer");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.admin")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove admin_offduty");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add admin");
+				sender.setOp(false);
+				return true;
+			}
+			if(sender.hasPermission("group.moderator")) {
+				sender.sendMessage(msg);
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent remove moderator_offduty");
+				Bukkit.getServer().dispatchCommand(console, "lp user " + sender.getName() + " parent add moderator");
+				sender.setOp(false);
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -4316,96 +4433,6 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		}
 	}
 	
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-	public static final void onBlockPlaceEvent(BlockPlaceEvent event) {
-		Player player = event.getPlayer();
-		Location location = event.getBlock().getLocation();
-		Island island = Island.getIslandContaining(location);
-		if(island == null || (!island.isMember(player))) {
-			event.setCancelled(!player.hasPermission("skyblock.admin"));
-			if(event.isCancelled()) {
-				player.sendMessage(ChatColor.RED.toString().concat("You do not have permission to edit blocks outside of your island."));
-				return;
-			}
-			if(location.getWorld() == GeneratorMain.getSkyworldTheEnd()) {
-				event.setCancelled(isInSpawn(location));
-			}
-		}
-		if(!event.isCancelled()) {
-			ItemStack similar = new ItemStack(event.getItemInHand());
-			EquipmentSlot hand = event.getHand();
-			if(hand == EquipmentSlot.HAND) {
-				Main.scheduler.scheduleSyncDelayedTask(getPlugin(), () -> {
-					ItemStack check = player.getInventory().getItemInMainHand();
-					if(check == null || check.getAmount() == 0 || check.getType() == Material.AIR) {
-						int i = 0;
-						int remaining = 0;
-						ItemStack set = null;
-						for(ItemStack item1 : player.getInventory().getContents()) {
-							if(item1 == null || item1.getType() == Material.AIR) {
-								i++;
-								continue;
-							}
-							if(isSameType(item1, similar)) {
-								player.getInventory().setItem(i, new ItemStack(Material.AIR));
-								player.getInventory().setItemInMainHand(item1);
-								set = item1;
-								break;
-							}
-							i++;
-						}
-						if(set != null) {
-							String title = similar.hasItemMeta() ? similar.getItemMeta().getDisplayName() : Main.capitalizeFirstLetterOfEachWord(similar.getType().name().toLowerCase(), '_', ' ');
-							for(ItemStack item2 : player.getInventory().getContents()) {
-								if(item2 == null || item2.getType() == Material.AIR) {
-									continue;
-								}
-								if(isSameType(item2, similar)) {
-									remaining += item2.getAmount();
-								}
-							}
-							player.sendTitle("", ChatColor.GRAY + "You have " + ChatColor.GOLD + Integer.toString(remaining, 10) + ChatColor.GRAY + " of " + title + ChatColor.RESET + ChatColor.GRAY + " remaining.", 10, 70, 20);
-						}
-					}
-				});
-			} else if(hand == EquipmentSlot.OFF_HAND) {
-				Main.scheduler.scheduleSyncDelayedTask(getPlugin(), () -> {
-					ItemStack check = player.getInventory().getItemInOffHand();
-					if(check == null || check.getAmount() == 0 || check.getType() == Material.AIR) {
-						int i = 0;
-						int remaining = 0;
-						ItemStack set = null;
-						for(ItemStack item1 : player.getInventory().getContents()) {
-							if(item1 == null || item1.getType() == Material.AIR) {
-								i++;
-								continue;
-							}
-							if(isSameType(item1, similar)) {
-								player.getInventory().setItem(i, new ItemStack(Material.AIR));
-								player.getInventory().setItemInOffHand(item1);
-								set = item1;
-								break;
-							}
-							i++;
-						}
-						if(set != null) {
-							String title = similar.hasItemMeta() ? similar.getItemMeta().getDisplayName() : Main.capitalizeFirstLetterOfEachWord(similar.getType().name().toLowerCase(), '_', ' ');
-							for(ItemStack item2 : player.getInventory().getContents()) {
-								if(item2 == null || item2.getType() == Material.AIR) {
-									continue;
-								}
-								if(isSameType(item2, similar)) {
-									remaining += item2.getAmount();
-								}
-							}
-							player.sendTitle("", ChatColor.GRAY + "You have " + ChatColor.GOLD + Integer.toString(remaining, 10) + ChatColor.GRAY + " of " + title + ChatColor.RESET + ChatColor.GRAY + " remaining.", 10, 70, 20);
-						}
-					}
-				});
-			}
-		}
-	}
-	
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public static final void onPlayerItemBreakEventMonitor(PlayerItemBreakEvent event) {
 		Player player = event.getPlayer();
@@ -4485,7 +4512,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				case OFF_HAND:
 					check = player.getInventory().getItemInOffHand();
 					break;
-				//$CASES-OMITTED$
+					//$CASES-OMITTED$
 				default:
 				case HAND:
 					check = player.getInventory().getItemInMainHand();
@@ -4612,58 +4639,67 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			event.setCancelled(true);
 			return;
 		}
-		if(entity.getWorld() == GeneratorMain.getSkyworld()) {
-			//Main.println("Skyworld 1");
-			Island island = Island.getIslandNearest(entity.getLocation());
-			//Location loc = island == null ? Island.getIslandLocationNearest(player.getLocation()) : island.getLocation();
-			int orientation = getPortalOrientation(portal);
-			if(island != null) {
-				//Main.println("Skyworld 2");
-				island.setNetherPortal(portal);
-				if(island.getNetherPortal() == null) {
-					throw new IllegalStateException("Islands be not saving portals, eh?!");
-				}
-			}
-			//int x = loc.getBlockX() * 8;
-			//int z = loc.getBlockZ() * 8;
-			Location portalLocation = island == null ? null : island.getSkyNetherPortal();
-			if(portalLocation == null) {
-				portalLocation = new Location(GeneratorMain.getSkyworldNether(), portal.getBlockX(), Math.min(portal.getBlockY(), 115), portal.getBlockZ());//final Location portalLocation = new Location(GeneratorMain.getSkyworldNether(), x, 64, z);
-				Block block = portalLocation.getBlock();
-				if(block.getType() != Material.NETHER_PORTAL) {
-					if(orientation == 0) {
-						portalLocation = createXAxisNetherPortal(portalLocation);
-					} else if(orientation == 1) {
-						portalLocation = createZAxisNetherPortal(portalLocation);
+		try {
+			if(entity.getWorld() == GeneratorMain.getSkyworld()) {
+				//Main.println("Skyworld 1");
+				Island island = Island.getIslandNearest(entity.getLocation());
+				//Location loc = island == null ? Island.getIslandLocationNearest(player.getLocation()) : island.getLocation();
+				int orientation = getPortalOrientation(portal);
+				if(island != null) {
+					//Main.println("Skyworld 2");
+					island.setNetherPortal(portal);
+					if(island.getNetherPortal() == null) {
+						throw new IllegalStateException("Islands be not saving portals, eh?!");
 					}
 				}
-			}
-			event.useTravelAgent(false);
-			event.setTo(getNetherPortalEntryLocation(portalLocation));
-			event.setCancelled(false);
-		} else if(entity.getWorld() == GeneratorMain.getSkyworldNether()) {
-			Island island = Island.getIslandNearest(new Location(GeneratorMain.getSkyworld(), entity.getLocation().getBlockX(), entity.getLocation().getBlockY(), entity.getLocation().getBlockZ()));
-			if(island == null || island.getNetherPortal() == null) {
-				if(entity instanceof Player) {
-					island = Island.getMainIslandFor((Player) entity);
-					if(island == null || island.getNetherPortal() == null) {
+				//int x = loc.getBlockX() * 8;
+				//int z = loc.getBlockZ() * 8;
+				Location portalLocation = island == null ? null : island.getSkyNetherPortal();
+				if(portalLocation == null) {
+					//dynamic portal positions:
+					//portalLocation = new Location(GeneratorMain.getSkyworldNether(), portal.getBlockX(), Math.min(portal.getBlockY(), 115), portal.getBlockZ());//final Location portalLocation = new Location(GeneratorMain.getSkyworldNether(), x, 64, z);
+					//fixed portal positions:
+					portalLocation = island == null ? GeneratorMain.getSkyworldNether().getSpawnLocation().add(0, 1, 0) : new Location(GeneratorMain.getSkyworldNether(), island.getLocation().getBlockX(), island.getLocation().getBlockY(), island.getLocation().getBlockZ());//final Location portalLocation = new Location(GeneratorMain.getSkyworldNether(), x, 64, z);
+					Block block = portalLocation.getBlock();
+					if(block.getType() != Material.NETHER_PORTAL) {
+						if(orientation == 0) {
+							portalLocation = createXAxisNetherPortal(portalLocation);
+						} else if(orientation == 1) {
+							portalLocation = createZAxisNetherPortal(portalLocation);
+						}
+					}
+				}
+				event.useTravelAgent(false);
+				event.setTo(getNetherPortalEntryLocation(portalLocation));
+				event.setCancelled(false);
+			} else if(entity.getWorld() == GeneratorMain.getSkyworldNether()) {
+				Island island = Island.getIslandNearest(new Location(GeneratorMain.getSkyworld(), entity.getLocation().getBlockX(), entity.getLocation().getBlockY(), entity.getLocation().getBlockZ()));
+				if(island == null || island.getNetherPortal() == null) {
+					if(entity instanceof Player) {
+						island = Island.getMainIslandFor((Player) entity);
+						if(island == null || island.getNetherPortal() == null) {
+							event.setCancelled(true);
+							return;
+						}
+					} else {
 						event.setCancelled(true);
 						return;
 					}
-				} else {
-					event.setCancelled(true);
-					return;
 				}
+				//event.setCancelled(false);
+				//event.useTravelAgent(false);
+				//event.setTo(getNetherPortalEntryLocation(island.getNetherPortal()));
+				final Island is = island;
+				Main.scheduler.runTaskLater(getPlugin(), () -> {
+					entity.teleport(getNetherPortalEntryLocation(is.getNetherPortal()));
+				}, 2L);
+			} else {
+				//Main.println("Fail 1");
 			}
-			//event.setCancelled(false);
-			//event.useTravelAgent(false);
-			//event.setTo(getNetherPortalEntryLocation(island.getNetherPortal()));
-			final Island is = island;
-			Main.scheduler.runTaskLater(getPlugin(), () -> {
-				entity.teleport(getNetherPortalEntryLocation(is.getNetherPortal()));
-			}, 2L);
-		} else {
-			//Main.println("Fail 1");
+		} finally {
+			if(!event.isCancelled() && !(event.getEntity() instanceof Player)) {
+				event.getEntity().setPersistent(true);
+			}
 		}
 	}
 	
@@ -4990,6 +5026,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public static final void onPlayerRespawnEvent(PlayerRespawnEvent event) {
 		Player player = event.getPlayer();
+		Main.lastTeleportTimes.put(player.getUniqueId().toString(), Long.valueOf(System.currentTimeMillis() + 30000L));
 		if(Island.isInSkyworld(playerDeathLocations.get(player.getUniqueId()))) {
 			Island island = Island.getMainIslandFor(player);
 			event.setRespawnLocation(island == null || !Main.isSafeForTeleporting(island.getHomeFor(player.getUniqueId())) ? (!Main.isSafeForTeleporting(event.getRespawnLocation()) ? (island == null || !Main.isSafeForTeleporting(island.getSpawnLocation()) ? GeneratorMain.getSkyworldSpawnLocation() : island.getSpawnLocation()) : event.getRespawnLocation()) : island.getHomeFor(player.getUniqueId()));
@@ -5032,6 +5069,11 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			if(event.getNewGameMode() == GameMode.CREATIVE && !event.isCancelled()) {
 				player.sendTitle(ChatColor.DARK_GRAY + "Creative in skyworld?", ChatColor.YELLOW + "Don't take out unobtainable blocks!", 20, 140, 40);
 				return;
+			}
+		}
+		if(!event.isCancelled() && Island.isInSkyworld(player)) {
+			if(event.getNewGameMode() == GameMode.SURVIVAL || event.getNewGameMode() == GameMode.ADVENTURE) {
+				Main.lastTeleportTimes.put(player.getUniqueId().toString(), Long.valueOf(System.currentTimeMillis() + 14000L));
 			}
 		}
 	}
@@ -5080,6 +5122,55 @@ public strictfp class Main extends JavaPlugin implements Listener {
 		return lastChangedWorldTime == null ? Long.MAX_VALUE : System.currentTimeMillis() - lastChangedWorldTime.longValue();
 	}
 	
+	public static final void sendPlayerIslandRegionJoinMessage(Player player) {
+		Island island = Island.getIslandContaining(player.getLocation());
+		Island.removeVisitor(player);
+		if(island == null || player.getLocation().getWorld() == GeneratorMain.getSkyworldTheEnd()) {
+			if(player.getLocation().getWorld() != GeneratorMain.getSkyworldTheEnd() && (Island.isWithinSpawnArea(player.getLocation()) && !Main.isInSpawn(player))) {
+				Main.addVisitor(player);
+			} else {
+				Main.removeVisitor(player);
+			}
+			return;
+		}
+		island.addVisitor(player);
+		Environment environment = player.getWorld().getEnvironment();
+		player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are entering &f" + island.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
+		if(island.allowPVP()) {
+			String[] pvpMsgs = new String[] {//
+					"Keep your head down!",//Brian_Entei
+					"Watch it!",////Brian_Entei
+					"Don't get pwn'd!",////Brian_Entei
+					"Check your gear!",////Brian_Entei
+					"Welcome to the &6&lwarzone&e.",//Gijs_TheBest
+					"Mobs aren't the only thing you have to worry about",//Gijs_TheBest
+					"- Here there be lions -",//Brian_Entei
+					"Can't we all just get along?",//Gijs_TheBest
+					"I need healing!",//Gijs_TheBest
+					"Oof!",//crossover131
+					"Et tu, Brute?",//Gijs_TheBest
+					"Run forest, run!",//Gijs_TheBest
+					"P90 rush B",//Gijs_TheBest
+					"What are you gonna do, stab me?",//Gijs_TheBest
+					"You rolled a natural 20. You play dead so convincingly, you actually die.",//Gijs_TheBest (tweaked to make it easier to read by Brian_Entei)
+					"Gentlemen, it has been my privilege.",//Gijs_TheBest
+					"A party! I love parties!",//Brian_Entei
+					"A party! lets have a party!",//Gijs_TheBest
+					"Tag, you're it!",//Gijs_TheBest
+					"Fly, you fools!",//Gijs_TheBest - Gandalf, LOTR
+					"I’ll show you that it won’t shoot.",//Gijs_TheBest - Johnny Ace, an R singer, died in 1954 while playing with a pistol during a break in his concert set. His last words were, “I’ll show you that it won’t shoot.”
+					"This dying is boring.",//Gijs_TheBest
+					"I love you very much, my dear Beaver.",//Gijs_TheBest - Philosopher Jean-Paul
+					"I did not get my Spaghetti-O’s; I got spaghetti. I want the press to know this.",//Gijs_TheBest - Thomas J Grasso
+					"What have we here? A good ol' fashioned shindig?!",//Brian_Entei
+					"Pardonnez-moi, monsieur.",//Brian_Entei - Marie Antoinette
+					"Qu'ils mangent de la brioche."//Brian_Entei - "Marie Antoinette", supposedly
+					//
+			};
+			player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cPvP is enabled on this island! &e".concat(pvpMsgs[random.nextInt(pvpMsgs.length)])));
+		}
+	}
+	
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public static final void onPlayerChangedWorldEventMonitor(PlayerChangedWorldEvent event) {
 		Player player = event.getPlayer();
@@ -5088,22 +5179,24 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			island.wipeMembersInventoriesIfRequired();
 		}
 		island = Island.getIslandContaining(player.getLocation());
-		if(island != null) {
-			Island leaving = Island.getIslandPlayerIsVisiting(player);
-			if(leaving != null) {
-				Environment environment = player.getWorld().getEnvironment();
-				player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are leaving &f" + leaving.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
+		if(Island.isInSkyworld(player.getLocation()) && player.getWorld() != GeneratorMain.getSkyworldTheEnd()) {
+			if(island != null) {
+				Island leaving = Island.getIslandPlayerIsVisiting(player);
+				if(leaving != null) {
+					Environment environment = event.getFrom().getEnvironment();
+					player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are leaving &f" + leaving.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
+				}
+				sendPlayerIslandRegionJoinMessage(player);
+			} else if(Island.isWithinSpawnArea(player.getLocation()) && !isInSpawn(player)) {
+				addVisitor(player);
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are entering the spawn area."));
+			} else if(!Island.isWithinSpawnArea(player.getLocation()) && isInSpawn(player)) {
+				player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are leaving the spawn area."));
+				removeVisitor(player);
 			}
-			Island.removeVisitor(player);
-			island.addVisitor(player);
-			Environment environment = player.getWorld().getEnvironment();
-			player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are entering &f" + island.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
-		} else if(Island.isWithinSpawnArea(player.getLocation()) && !isInSpawn(player)) {
-			addVisitor(player);
-			player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are entering the spawn area."));
-		} else if(!Island.isWithinSpawnArea(player.getLocation()) && isInSpawn(player)) {
-			player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are leaving the spawn area."));
+		} else {
 			removeVisitor(player);
+			Island.removeVisitor(player);
 		}
 		lastChangedWorldTimes.put(player.getUniqueId().toString(), Long.valueOf(System.currentTimeMillis()));
 		Main.scheduler.runTaskLater(getPlugin(), () -> {//If you change the gamemode right away, there is a chance that PerWorldInventories will glitch out and update your inventory to the wrong gamemode. Say, creative inventory for survival mode.
@@ -5162,6 +5255,11 @@ public strictfp class Main extends JavaPlugin implements Listener {
 			if(player.getGameMode() != GameMode.SURVIVAL && !(player.hasPermission("skyblock.gamemode." + player.getGameMode().name().toLowerCase()) || player.isOp())) {
 				player.setGameMode(GameMode.SURVIVAL);
 			}
+			if(player.getWorld() == GeneratorMain.getSkyworldTheEnd()) {
+				Island.removeVisitor(player);
+				Main.removeVisitor(player);
+				return;
+			}
 			//XXX Disabled island mob GUI scoreboard
 			/*if(island != null) {
 				Scoreboard check = player.getScoreboard();
@@ -5194,9 +5292,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 				} else {
 					if(!island.isVisiting(player)) {
-						island.addVisitor(player);
-						Environment environment = player.getWorld().getEnvironment();
-						player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are entering &f" + island.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
+						sendPlayerIslandRegionJoinMessage(player);
 					}
 				}
 			} else {
@@ -5206,7 +5302,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				}*/
 				Island leaving = Island.getIslandPlayerIsVisiting(player);
 				if(leaving != null) {
-					Environment environment = player.getWorld().getEnvironment();
+					Environment environment = event.getFrom().getWorld().getEnvironment();
 					player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aYou are leaving &f" + leaving.getOwnerName() + "&a's " + (environment == Environment.NORMAL ? "island" : (environment == Environment.NETHER ? "nether area" : "end area")) + "."));
 				}
 				Island.removeVisitor(player);
@@ -5394,7 +5490,8 @@ public strictfp class Main extends JavaPlugin implements Listener {
 				}
 			}
 		}
-		if(event.getAction() == Action.PHYSICAL) {
+		//Already handled in DamageEventListener.onPlayerInteractEvent(...)
+		/*if(event.getAction() == Action.PHYSICAL) {
 			Block block = event.getClickedBlock();
 			if(block != null) {
 				Location location = block.getLocation();
@@ -5407,30 +5504,7 @@ public strictfp class Main extends JavaPlugin implements Listener {
 					}
 				}
 			}
-		}
-		island = Island.getIslandNearest(player.getLocation());
-		if(island != null && !island.isMember(player)) {
-			if(event.getAction() == Action.LEFT_CLICK_BLOCK && player.isSneaking()) {
-				//if(Main.pluginMgr.getPlugin("EnteisPermissions") != null) {
-				event.setCancelled(!player.hasPermission("skyblock.admin"));
-				if(event.isCancelled()) {
-					return;
-				}
-				//}
-			}
-			if(event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-				Block clicked = event.getClickedBlock();
-				if(clicked != null && clicked.getState() instanceof InventoryHolder) {
-					if(!island.isTrusted(player)) {
-						event.setCancelled(!player.hasPermission("skyblock.admin"));
-						if(event.isCancelled()) {
-							player.sendMessage(ChatColor.RED.toString().concat("You do not have permission to open containers outside of your island."));
-							return;
-						}
-					}
-				}
-			}
-		}
+		}*/
 	}
 	
 	/*public static final void updatePWPInventory(Player player) {

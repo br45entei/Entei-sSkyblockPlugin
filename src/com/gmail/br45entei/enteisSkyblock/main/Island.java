@@ -175,10 +175,10 @@ public final class Island {
 							//	Main.server.getPlayer(island.getOwner()).sendMessage(".Spawned " + spawned + " hostile mobs.");
 							//}
 						}// else {
-							//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
-							//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
-							//}
-							//}
+						//if(Main.server.getOfflinePlayer(island.getOwner()).isOnline()) {
+						//	Main.server.getPlayer(island.getOwner()).sendMessage("Spawned " + spawned + " animals.");
+						//}
+						//}
 					}
 				} else {
 					if(island.spawnMobs) {
@@ -370,7 +370,7 @@ public final class Island {
 		SecureRandom random = new SecureRandom();
 		int x = random(random, min, max);
 		int z = random(random, min, max);
-		while(Math.abs(x) < 2 && Math.abs(z) < 2) {
+		while(Math.abs(x) < GeneratorMain.getSpawnOffset() && Math.abs(z) < GeneratorMain.getSpawnOffset()) {
 			x = random(random, min, max);
 			z = random(random, min, max);
 		}
@@ -392,14 +392,17 @@ public final class Island {
 	
 	/** @return The next randomly located(potentially isolated) Island */
 	public static final Island getNextRandomlyLocatedIsland() {
-		int[] id = nextRandomID(0, 101);
+		int maxRandomRange = 1000;
+		int[] id = nextRandomID(0, maxRandomRange);
 		int i = 0;
 		Island randomlyChosen;
 		while((randomlyChosen = getIfExists(id[0], id[1])) != null) {
 			if(randomlyChosen.getOwner() == null) {
+				randomlyChosen.deleteCompletely();
+				Main.getPluginLogger().info("Deleted orphaned island at ".concat(randomlyChosen.getID()).concat("."));
 				break;
 			}
-			id = nextRandomID(0, 101 + i);
+			id = nextRandomID(0, maxRandomRange + i);
 			i++;
 		}
 		return getOrCreate(id[0], id[1]);
@@ -491,7 +494,15 @@ public final class Island {
 	 *         <tt><b>null</b></tt> otherwise */
 	public static final Island getIslandPlayerIsUsing(Player player, boolean playerMustBeAMemberOfIsland, boolean playerMustOwnTheIsland) {
 		Island island = Island.getIslandContaining(player.getLocation());
-		return island == null || ((playerMustOwnTheIsland && !island.isOwner(player)) || (playerMustBeAMemberOfIsland && !island.isMember(player))) ? Island.getMainIslandFor(player.getUniqueId(), playerMustOwnTheIsland) : island;
+		if(island != null) {
+			if(playerMustOwnTheIsland && !island.isOwner(player)) {
+				return Island.getMainIslandFor(player.getUniqueId(), playerMustOwnTheIsland);
+			}
+			if(playerMustBeAMemberOfIsland && !island.isMember(player)) {
+				return Island.getMainIslandFor(player.getUniqueId(), playerMustOwnTheIsland);
+			}
+		}
+		return island;
 	}
 	
 	/** @param player The player whose Island will be searched for
@@ -911,7 +922,7 @@ public final class Island {
 			return clazz == null ? true : clazz == MushroomCow.class;
 		case BONE_BLOCK:
 			return clazz == null ? false : clazz == Wolf.class;
-		//$CASES-OMITTED$
+			//$CASES-OMITTED$
 		default:
 			return false;
 		}
@@ -965,7 +976,7 @@ public final class Island {
 		case STONE_BUTTON:
 		case WATER:
 			return true;
-		//$CASES-OMITTED$
+			//$CASES-OMITTED$
 		default:
 			if(material.name().contains("_CARPET") || material.name().contains("_PRESSURE_PLATE") || material.name().contains("_BUTTON")) {
 				return true;
@@ -1044,8 +1055,8 @@ public final class Island {
 				}
 			}
 		}// else {
-			//Main.console.sendMessage(ChatColor.YELLOW + "[EnteisSkyblock] Unimplemented island spawn class: " + clazz.getSimpleName() + "...");
-			//}
+		//Main.console.sendMessage(ChatColor.YELLOW + "[EnteisSkyblock] Unimplemented island spawn class: " + clazz.getSimpleName() + "...");
+		//}
 		return spots;
 	}
 	
@@ -1416,6 +1427,7 @@ public final class Island {
 	
 	private volatile long createTime;
 	private volatile long lastRestartTime;
+	private volatile int timesRestarted = 0;
 	private volatile boolean isTestIsland = false;
 	private volatile String islandType = "normal";
 	
@@ -1517,7 +1529,7 @@ public final class Island {
 	public final Island setUncompleted(UUID member, String challengeName) {
 		if(this.hasMemberCompleted(member, challengeName)) {
 			ConcurrentHashMap<String, Integer> completedChallenges = get(member, this.memberCompletedChallenges);
-			completedChallenges.put(challengeName, Integer.valueOf(-completedChallenges.get(challengeName).intValue()));
+			completedChallenges.put(challengeName, Integer.valueOf(0));
 			return this;
 		}
 		/*if(this.isMember(member) && challengeName != null && !challengeName.trim().isEmpty()) {
@@ -1850,6 +1862,7 @@ public final class Island {
 	private final void copy(Island copy) {
 		this.createTime = copy.createTime;
 		this.lastRestartTime = copy.lastRestartTime;
+		this.timesRestarted = copy.timesRestarted;
 		this.isTestIsland = copy.isTestIsland;
 		this.islandType = copy.islandType;
 		this.owner = copy.owner;
@@ -1948,6 +1961,11 @@ public final class Island {
 		return this;
 	}
 	
+	@Deprecated
+	public final void unregister() {
+		islands.remove(this);
+	}
+	
 	/** @param <T> The type of the value to get
 	 * @param key The key to get
 	 * @param map The map to get from
@@ -1981,6 +1999,7 @@ public final class Island {
 		try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(this.getSaveFile()), StandardCharsets.UTF_8), true)) {
 			out.println("creationTime=" + Long.toString(this.createTime == 0 ? System.currentTimeMillis() : this.createTime));
 			out.println("lastRestartTime=" + Long.toString(this.lastRestartTime));
+			out.println("timesRestarted=" + Integer.toString(this.timesRestarted));
 			out.println("isTestIsland=" + Boolean.toString(this.isTestIsland));
 			out.println("islandType=" + ((this.islandType == null || this.islandType.isEmpty()) ? "normal" : this.islandType));
 			out.println("owner=" + (this.owner == null ? "" : this.owner.toString()));
@@ -2271,6 +2290,8 @@ public final class Island {
 					dupe.createTime = Long.parseLong(value);
 				} else if(pname.equalsIgnoreCase("lastRestartTime")) {
 					dupe.lastRestartTime = Long.parseLong(value);
+				} else if(pname.equalsIgnoreCase("timesRestarted")) {
+					dupe.timesRestarted = Integer.parseInt(value);
 				} else if(pname.equalsIgnoreCase("isTestIsland")) {
 					dupe.isTestIsland = Boolean.parseBoolean(value);
 				} else if(pname.equalsIgnoreCase("islandType")) {
@@ -3638,7 +3659,7 @@ public final class Island {
 	}
 	
 	public final Island generateSchematicIsland(boolean deleteBlocks, boolean restoreBiome, final boolean teleportMembersToIsland) {
-		if(this.isWithinSpawnArea()) {
+		if(this.isWithinSpawnArea() && !this.isTestIsland) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
 		this.islandType = "schematic";
@@ -3707,6 +3728,8 @@ public final class Island {
 											Main.safeTeleport(member.getPlayer(), this.getSpawnLocation());
 											teleportedPlayers.add(member.getUniqueId().toString());
 										}
+									} else if(member.isOnline()) {
+										member.getPlayer().sendMessage(ChatColor.GREEN.toString().concat("Your new island has finished generating, but you weren't in the skyworld when it finished. Type \"").concat(ChatColor.WHITE.toString()).concat("/island home").concat(ChatColor.GREEN.toString()).concat("\" to start playing on your new island!"));
 									}
 								}
 								teleportPlayersArray[0] = false;
@@ -3721,17 +3744,19 @@ public final class Island {
 					if(block.getState() instanceof Chest) {//Schematic was pasted really quickly(or plain old WorldEdit was used)
 						tid[1] = tid[2];
 						task.run();
+						this.save();
 						return this;
 					}
 					if(teleportMembersToIsland) {
 						for(UUID uuid : this.getMembers()) {
 							OfflinePlayer member = Main.server.getOfflinePlayer(uuid);
-							if(member.isOnline() && Island.isInSkyworld(member.getPlayer())) {
+							if(member.isOnline()) {// && Island.isInSkyworld(member.getPlayer())) {
 								member.getPlayer().sendMessage(ChatColor.GREEN.toString().concat("Your new island at ").concat(this.getID()).concat(" is currently being generated! When it finishes, you will be automatically teleported to it."));
 							}
 						}
 					}
 					Main.scheduler.runTaskTimer(Main.getPlugin(), task, 0L, 5L);//Start the task immediately(delay = 0), and repeat the task to check for the chest once every 5 ticks, or every 1/4 of a second(5 * 4 = 20; 20 ticks = 1 second)
+					this.save();
 					return this;
 				}
 			} else {
@@ -3766,6 +3791,7 @@ public final class Island {
 				}
 			}
 		}
+		this.save();
 		return this;
 	}
 	
@@ -3778,7 +3804,7 @@ public final class Island {
 	}
 	
 	public final Island generateIsland(boolean deleteBlocks, boolean restoreBiome) {
-		if(this.isWithinSpawnArea()) {
+		if(this.isWithinSpawnArea() && !this.isTestIsland) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
 		this.islandType = "normal";
@@ -3964,6 +3990,7 @@ public final class Island {
 		//Chest 1
 		
 		generateChestAt(world, X, GeneratorMain.island_Height + 5, Z - 1);
+		this.save();
 		return this.setBiome(this.biome);
 	}
 	
@@ -3976,7 +4003,7 @@ public final class Island {
 	}
 	
 	public final Island generateSquareIsland(boolean deleteBlocks, boolean restoreBiome) {
-		if(this.isWithinSpawnArea()) {
+		if(this.isWithinSpawnArea() && !this.isTestIsland) {
 			throw new IllegalStateException(ChatColor.DARK_RED + "Cannot generate an island in the spawn area!");
 		}
 		this.islandType = "square";
@@ -4109,6 +4136,7 @@ public final class Island {
 		
 		//Chest 1
 		generateChestAt(world, X, GeneratorMain.island_Height + 3, Z - 1);
+		this.save();
 		return this.setBiome(this.biome);
 	}
 	

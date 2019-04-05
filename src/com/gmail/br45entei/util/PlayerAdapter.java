@@ -77,7 +77,7 @@ import org.bukkit.util.Vector;
  *
  * @author Brian_Entei */
 @SuppressWarnings("deprecation")
-public class PlayerAdapter implements Player {
+public class PlayerAdapter implements Player {//extends CraftPlayer implements Player {
 	
 	private final UUID uuid;
 	private final String name;
@@ -110,7 +110,12 @@ public class PlayerAdapter implements Player {
 	private int vx;
 	private Location bedSpawn;
 	
+	//private static final EntityPlayer createFor(UUID uuid, String name, Location location, GameMode gameMode) {
+	//	EntityPlayer player = new EntityPlayer(minecraftserver, worldserver, gameprofile, playerinteractmanager)
+	//}
+	
 	public PlayerAdapter(UUID uuid, String name, Location location, GameMode gameMode) {
+		//super(this.server, createFor(uuid, name, location, gameMode));
 		this.uuid = uuid;
 		this.name = name;
 		this.world = location.getWorld();
